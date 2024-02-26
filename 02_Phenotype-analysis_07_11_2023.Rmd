@@ -1,0 +1,4054 @@
+---
+title: "Phenotypic analysis of agronomic traits from 2020-2021 and 2021-2022 data"
+author: "Madhav Subedi"
+date: "2023-04-03"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+# note:
+
+1.  you could create categories such as "Low Lodging" (corresponding to values 1-3), "Moderate Lodging" (corresponding to values 4-6), and "High Lodging" (corresponding to values 7-9), and assign each observation to one of these categories based on its lodging value. After this you can change it to factor variable.
+
+2.remember to use vigor subset data for analysis.
+
+3.use phenotypic analysis r file in this path for furtheranalysis: /Users/madhavsubedi/Library/CloudStorage/OneDrive-UniversityofGeorgia/01_PhD/01_Research/Data_analysis/2021_DATA/GWAS_2021 data analysis/Seperate environment/2022_03_09 analysis/01_Phenotypic_analysis_Envt_seperate.Rmd
+
+4.If you have a response variable that is not normally distributed, you can use generalized linear models (GLMs) instead of traditional linear models. GLMs allow you to model the relationship between the response variable and predictor variables using a different distribution and link function, such as the Poisson distribution for count data or the binomial distribution for binary data.
+
+5.  The lmer() function in the lme4 package assumes a Gaussian (i.e., normal) error distribution by default, but you can specify other error distributions such as Poisson, binomial, or gamma by using the family argument. For example, if your response variable is a count variable, you can use a Poisson distribution with a log link function to model the data. If your response variable is a binary variable, you can use a binomial distribution with a logit link function.
+
+6. genotype is to be converted to factor
+
+7.  Pioneer_26R31_CG plains 2021 height data is adjusted to 74 since it was outlier at 71. The line is consistently lower height in other env also so removing it didnt make sense.
+
+8. If a variable is not significantly affectingthe model, you want to drop it toregain those DOF
+
+9.Assumption of linear regresion
+a. Normality of errors: Residual plot i.e errors should look normally distributed
+b. No multicollinearity: Vaiables should not be correlated
+c. Independent errors: Errors are uncorrelated. This is mostly violated and there are ways to fix it. 
+d. Homoscedasticity: Errors are supposed to have same variance
+
+20. You need a genotype to show up in at least 20 individuals to be able to estimate it properly Principal component
+
+21. Eigen values tells how much variation in each 
+
+22. The kinship matrix describes how much we expect the phenotypes of individuals to resemble each other based on how much their genotypes resemble each other
+
+23. For non normal data: Generalized linear mixed model , it can be done throgh glmer function in lme4 package. 
+
+24. Graph such a box plot size WERE SAVED IN 550 X550
+
+25. Inlcude ID infront of rep since it is higher level grouping and including rep second will bring in variation in Id within reps
+
+## This notebook is used for analysis of agronomic traits from both years. This will be the most advanced analysis and used for publication.
+
+
+# LOAD PACKAGE
+```{r}
+## Here the environments were considered as seperate. That is independent GWAS analysis was done for PL and BL.
+
+###### Install packages  #############################################
+install.packages("agricolae")
+install.packages("lmerTest") #add-on package to help with analysis of lme4 results; lmer(") function to use "random effects"
+install.packages("lme4")
+install.packages("lsmeans")
+install.packages("rrBLUP")
+install.packages("emmeans") # used for mean comparison in lmer(") function as Tukey test cannot be used here
+install.packages("ggplot2")
+install.packages("psych") #For correlation plotting
+install.packages("car")
+install.packages("gvlma")
+install.packages("readxl")
+install.packages("reshape2")
+install.packages("dplyr")
+
+#calling packages for use
+library(agricolae)
+library(lmerTest) #add-on package to help with analysis of lme4 results; lmer() function to use "random effects"
+library(lme4)
+library(lsmeans)
+library(rrBLUP)
+library(emmeans) # used for mean comparison in lmer() function as Tukey test cannot be used here
+library(ggplot2)
+library(psych) #For correlation plotting
+library(car)
+library(gvlma)
+library(readxl)
+library(reshape2) #to transform data to and from long and wide format
+library(dplyr)
+```
+
+# SET WORKING DIRECTORY
+
+```{r}
+setwd("/Users/madhavsubedi/Library/CloudStorage/OneDrive-UniversityofGeorgia/01_PhD/01_Research/Data_analysis/GWAS analysis/Final analysis/Agronomic data/FINAL PAPER ANALYSIS")   ### For mac
+
+setwd("C:/Users/guest_user/OneDrive - University of Georgia/01_PhD/01_Research/Data_analysis/GWAS analysis/Final analysis/Agronomic data/FINAL PAPER ANALYSIS/")
+```
+
+# IMPORTING DATA
+
+##For importing data look at the environment window and select the import. You can change the variables to character, number and others as you prefer which is one of the problems while importing data in R.
+
+```{r}
+mydata= read_xlsx("C:/Users/guest_user/OneDrive - University of Georgia/01_PhD/01_Research/Data_analysis/GWAS analysis/Final analysis/Agronomic data/FINAL PAPER ANALYSIS/Phenotypedata_267 LINES.xlsx") 
+head(mydata)
+```
+
+# DATA CLEANING
+```{r}
+colSums(is.na(mydata))
+
+#this is a command used in R to calculate the number of missing (NA) values in each column of a dataframe
+```
+
+## Data structure
+```{r}
+
+#Structure of data 
+str(mydata)
+
+dim(mydata)
+mydata$Rep=as.factor(mydata$Rep) 
+#Change variable 'Rep' to factor
+mydata$Cultivar=as.factor(mydata$Cultivar) 
+#Change variable 'Cultivar' to factor
+mydata$ID=as.factor(mydata$ID)
+table(mydata$ID, mydata$Rep) #to cross check the data structure and mis-tabulation
+table(mydata$Cultivar,mydata$Rep)
+
+#############Thoughts#####################
+#The data looks okay in terms of structure. 
+```
+
+# DESCRIPTIVE STAT
+```{r}
+
+
+mean= aggregate(x=mydata[4:70],        # specify data column whose mean is being computed
+                by= list(mydata$Cultivar) , 
+FUN="mean") #specify function (i.e. mean)
+dstat= describe(mean)   
+head(dstat)
+write.csv(dstat, file='Descriptive_Staistics_agromorphogtraits.csv') 
+
+# descriptive stat max and minimum can be different so do summary
+
+summary=data.frame(summary(mydata[4:70]))
+
+```
+
+# Reshaping the data to long format
+```{r}
+agronomy_melt_data <- reshape2::melt(mydata, varnames = c("Cultivar", "Rep"))
+write.csv(agronomy_melt_data, file = "agronomy_melt_data.csv")
+
+#this data was formatted again to arrange by traits and imported. It will be useful for variance analysis
+agronomy_melt_data= read_xlsx("Agronomy_melt_data_bytraits.xlsx"). ####THIS needs to be updated for changes made in the wide format like LW ratio AND LA. It doesnt have some traits in it like yield. 
+#Now lets format this data
+agronomy_melt_data$ID=as.factor(agronomy_melt_data$ID)
+agronomy_melt_data$Cultivar=as.factor(agronomy_melt_data$Cultivar)
+agronomy_melt_data$Rep=as.factor(agronomy_melt_data$Rep)
+agronomy_melt_data$Env=as.factor(agronomy_melt_data$Env)
+```
+
+# Normality check on melt data
+```{r}
+shapiro.test(agronomy_melt_data$Heading)
+shapiro.test(agronomy_melt_data$FLL)
+shapiro.test(agronomy_melt_data$FLW)
+shapiro.test(agronomy_melt_data$LW)
+shapiro.test(agronomy_melt_data$`Leaf area`)
+shapiro.test(agronomy_melt_data$Height)
+shapiro.test(agronomy_melt_data$Peduncle)
+shapiro.test(agronomy_melt_data$Lodging)
+shapiro.test(agronomy_melt_data$`Stand count`)
+shapiro.test(agronomy_melt_data$Vigor)
+#all turned out to be non normal (Greenness and yield not tested)
+```
+
+
+# 1.Heading date
+##     subsetting data
+```{r}
+#Subsetting heading data
+Heading_data <- mydata[, c("Cultivar","ID","Rep","HD_PL23","HD_GRF23","HD_PL22", "HD_GRF22", "HD_PL21", "HD_GRF21" )]
+
+Heading_data_griffin <- mydata[, c("Cultivar","ID","Rep", "HD_GRF23", "HD_GRF22", "HD_GRF21" )]
+
+Heading_data_plains <- mydata[, c("Cultivar","ID","Rep", "HD_PL23", "HD_PL22", "HD_PL21" )]
+#Melt the data frame from wide to long format
+
+Heading_melt_data <- reshape2::melt(Heading_data, varnames = c("Cultivar", "Rep"))
+
+Heading_melt_plains <- reshape2::melt(Heading_data_plains, varnames = c("Cultivar", "Rep"))
+
+Heading_melt_griffin <- reshape2::melt(Heading_data_griffin, varnames = c("Cultivar", "Rep"))
+
+```
+
+##     Plotting
+###        Simple plot
+```{r}
+plot(Heading_data$HD_PL23, col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for PL23 ", ylim=c(120, 150))
+plot(Heading_data$HD_GRF23, col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for PL23 ", ylim=c(135, 160))
+plot(Heading_data$HD_PL22, col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for PL22 ", ylim=c(120, 150))
+plot(Heading_data$HD_GRF22,col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for GRF22",ylim=c(155, 180))
+plot(Heading_data$HD_PL21,col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for PL21",ylim=c(120, 145))            #outliers evident
+plot(Heading_data$HD_GRF21,col=mydata$Rep,xlab = "Lines", ylab = "Heading date (DOS) for GRF21",ylim=c(140, 165))          #outliers evident
+
+#The outliers can be identified and removed using box plot
+
+```
+
+###         Box plot
+```{r}
+
+# Displaying data by environment by Replicates.       ##### USE FOR PAPER
+
+# Set color palette
+my_palette <- c("skyblue", "orange", "skyblue", "orange","skyblue", "orange")
+
+
+Heading_graph_data=Heading_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(Heading_graph_data)=new_column_names
+str(Heading_graph_data)
+
+
+Heading_graph_melt=reshape2::melt(Heading_graph_data, varnames = c("Cultivar", "Rep"))
+
+# Create the box plot
+ggplot(Heading_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black", position = position_dodge(0.2)) +
+  
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Heading Date by Environment",
+       x = "Environment", y = "Heading date in DAS",
+       fill = "Environment") +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12, color = "black"), # Set x-axis text color to black
+    axis.text.y = element_text(size = 12, color = "black"),                       # Set y-axis text color to black
+    legend.position = "bottom",
+    legend.title = element_text(size = 16, color = "black"), # Set legend title color to black
+    legend.text = element_text(size = 16, color = "black"),   # Set legend text color to black
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title.x = element_text(size = 16, color = "black"),   # Set x-axis label color to black
+    axis.title.y = element_text(size = 16, color = "black")    # Set y-axis label color to black
+  )
+
+
+```
+
+
+#for paper use
+```{r}
+library(ggplot2)
+
+# Create the compact box plot
+ggplot(Heading_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "HD (DAS)",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, color="black" ),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Save the plot as a compact figure (adjust the width and height as needed)
+ggsave("compact_plot.png", width = 6, height = 4, dpi = 300)
+
+
+```
+
+###         Histogram
+```{r}
+##################OPTION 1: Showing for each enviornmnet by counting "number of lines" in Y axis for x-variables (PREFERRED IN THE PUBLICATION)
+mean_Heading_date= aggregate(x=Heading_data[,c("HD_PL23","HD_GRF23","HD_PL22", "HD_GRF22","HD_PL21","HD_GRF21")],     #specify data column whose mean is being computed
+                          by= list(Heading_data$Cultivar),   # specify group indicator
+                          FUN= "mean")             # specify function (i.e. mean)
+mean_Heading_date
+h= hist(mean_Heading_date$HD_PL23, labels=T, #Use 'mydata$FDK_GH20' instead of 'mean$x' for variables without replication
+        main=NA, 
+        xlab=expression(bold("Heading date in DAS")),
+        ylab="Number of lines", 
+        border="black", 
+        col= "tan",
+        xlim=c(120,150),
+        ylim=c(0,170), 
+        lwd= 2,   #make line bold 
+        font=2,   #make x and y-axis font bold
+        font.lab=2, #make x and y-axis label font bold
+        cex.lab=1.5, #make x and y-axis label font larger
+        cex.axis=1.5, #make x and y-axis font larger
+        family='sans') #takes Arial font, if "serif" = times new roman
+
+#box(which="figure", lty="solid") #to enclose histogram in a box 
+# color code for histogram: INC-LIGHT GREEN; SEV-SKY BLUE; IND-LIGHT BLUE; FDK-GRAY; 
+# DON-PINK; DTH-LAVENDER; PHT-khaki; TKW-DARK GREEN; ISK-salmon; DISK-gold
+
+summary (mean_Heading_date)
+hist(mean_Heading_date$HD_PL23, labels = T, ylim = c(0,110), col = "orange")
+hist(mean_Heading_date$HD_PL22, labels = T, ylim = c(0,110), col = "orange")
+hist(mean_Heading_date$HD_GRF22, labels=T,ylim = c(0,110),col = "orange")
+hist(mean_Heading_date$HD_GRF23, labels=T,ylim = c(0,110),col = "orange")
+hist(mean_Heading_date$HD_PL21, labels=T,ylim = c(0,110),col = "orange")
+out.height="500px"
+hist(mean_Heading_date$HD_GRF21, labels=T, ylim = c(0,110),col = "orange")
+
+# Load the necessary libraries
+install.packages("gridExtra")
+library(ggplot2)
+library(gridExtra)
+
+############OPTION 2: Displaying each environment in single figure
+# Select the columns from 4 to 9 for creating histograms
+selected_columns <- Heading_data[, 4:9]
+
+# Create a list to store the individual histograms
+histograms <- list()
+
+# Loop through each selected column and create a histogram
+for (col in colnames(selected_columns)) {
+  # Create the histogram
+  hist <- ggplot(Heading_data, aes_string(x = col)) +
+    geom_histogram(binwidth = 2, fill = "steelblue", color = "white",alpha=0.7) +
+    labs(x = col, y = "Number of individuals") +
+    theme_minimal()
+  
+  histograms[[col]] <- hist  # Add the histogram to the list
+}
+
+# Arrange the histograms in one figure
+figure <- grid.arrange(grobs = histograms, ncol = 2)  # Assuming you want three columns
+
+# Display the figure
+print(figure)
+ 
+#####OPTION 3: Single environment without aggregate
+h= hist(Heading_data$HD_PL22, labels=T, #Use 'mydata$FDK_GH20' instead of 'mean$x' for variables without replication
+        main=NA, 
+        xlab="Heading dates in DAS",
+        ylab="Number of lines", 
+        border="black", 
+        col= "gray", 
+        ylim=c(0,150),
+        lwd= 2,   #make line bold 
+        font=2,   #make x and y-axis font bold
+        font.lab=2, #make x and y-axis label font bold
+        cex.lab=1.5, #make x and y-axis label font larger
+        cex.axis=1.5, #make x and y-axis font larger
+        family='sans') #takes Arial font, if "serif" = times new roman
+
+
+#OPTION 4: Displaying separate bar graph for each rep for each environment
+#creating another column which factors in the envirionment and replication
+Heading_melt_data$RepID <- paste(Heading_melt_data$variable, Heading_melt_data$Rep, sep="_") 
+
+ggplot(Heading_melt_data, aes(x = value)) + 
+  geom_histogram(binwidth = 2, color="black", fill="steelblue", alpha=0.7) + 
+  facet_wrap(~ RepID, ncol=2) + 
+  labs(title = "Distribution of Heading Date by Environment and Replication", x = "Heading Date", y = "Frequency"
+       )
+```
+
+###         Violin plot
+```{r}
+#violin plot
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the violin plot by environment by replicate
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(Rep))) +
+  #geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+  #geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+
+#   Create violin plot by environment only
+ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Heading Date by Environment",
+       x = "Environment", y = "Heading date in DAS",
+       fill = "Environment") +
+  ylim(120, 180) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 1, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+##     DATA FILTERING
+```{r}
+#filtered_height_BL=subset(mydata,mydata$Plant_height_BL_2021>90 & mydata$Plant_height_BL_2021<120)
+#boxplot(filtered_height_BL$Plant_height_BL_2021)
+
+#filtered_height_PL=subset(mydata, mydata$Plant_height_PL_2021<110 & mydata$Plant_height_PL_2021>80)
+#filtered_height_PL
+#boxplot(filtered_height_PL$Plant_height_PL_2021)
+```
+
+##     Data validity
+###      levene's test
+```{r}
+library(car)
+#overal levenes test
+leveneTest(value~variable,Heading_melt_data,center="mean")$`Pr(>F)`
+equalitytest$`Pr(>F)`
+
+fligner.test(value~variable, Heading_melt_data)$`p-value`
+
+#There is no equal variance among environments. Now lets test in between griffin and plains. We need to subset it first
+#first method
+#Heading_plains_data=subset(Heading_melt_data, variable=="HD_PL23"|variable=="HD_PL22"| variable=="HD_PL21")
+#Heading_Grf_data=subset(Heading_melt_data, variable=="HD_GRF23"| variable=="HD_GRF22"| variable=="HD_GRF21")
+
+#checking if the above subsettinggives same result to the way below. This is done because while subsetting the levels of variable i.e env is still shown as 6 although for each location there should be only 3 for three year data. 
+
+Heading_data_plains <- Heading_data[, c("Cultivar","ID","Rep", "HD_PL23", "HD_PL22", "HD_PL21" )]
+Heading_melt_plains <- reshape2::melt(Heading_data_plains, varnames = c("Cultivar", "Rep"))
+Heading_melt_griffin<- reshape2::melt(Heading_data_griffin, varnames = c("Cultivar", "Rep"))
+
+# the result was the same both ways so either one of sub setting is fine
+leveneTest(value~variable,Heading_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,Heading_melt_griffin,center="mean")$`Pr(>F)`
+
+fligner.test(value~variable, Heading_melt_griffin)
+fligner.test(value~variable, Heading_melt_plains)
+
+#The Griffin data doesnt seem to have equal variance but plains data does
+```
+
+###      Normality check
+```{r}
+Normalitytest=shapiro.test(Heading_data$HD_PL23) #individual environment
+Normalitytest$p.value
+shapiro.test(Heading_data$HD_PL22)
+shapiro.test(Heading_data$HD_GRF22)
+shapiro.test(Heading_data$HD_PL21)
+shapiro.test(Heading_data$HD_GRF21)
+shapiro.test(Heading_melt_data$value) ## all env combined
+
+# all environmnet data non normal for heading date
+```
+
+##     Linear regression
+```{r}
+
+################### Multiple env for interaction effect  #######################
+model2_heading=lmer(Heading_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=Heading_melt_data) 
+summary(model2_heading)
+ranova(model2_heading)$Pr
+
+model2_heading_plains=lmer(Heading_melt_plains$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=Heading_melt_plains)
+summary(model2_heading_plains)
+
+ranova(model2_heading_plains)$Pr
+
+model2_heading_grf=lmer(Heading_melt_griffin$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=Heading_melt_griffin)
+summary(model2_heading_grf)
+ranova(model2_heading_grf)$Pr
+
+##################### HD_PL23 ############################
+model2_HD_PL23=lmer(mydata$HD_PL23~(1|ID)+(1|Rep), data=mydata) #Rep removed as variable since singular
+hist(residuals(model2_HD_PL23), col="light Blue") #residuals histogram check doesn't show normal distribution
+plot(model2_HD_PL23)              #check residuals for problematic data,i.e diagnostic plot
+hist(residuals(model2_HD_PL23))
+summary(model2_HD_PL23)
+#shows output for coefficients of random effects, ID which is the BLUP of individual ID
+ranova(model2_HD_PL23)$Pr[2]#for random effect
+#anova(model2_yield) #only run if there is any fixed effects in the model term
+hist(mydata$HD_GRF21)
+
+##################### HD_GRF23 ############################
+model2_HD_GRF23=lmer(mydata$HD_GRF23~(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_HD_GRF23), col="light Blue") #looks normally distribution for HD_PL22
+plot(model2_HD_GRF23)              
+boxplot(residuals(model2_HD_GRF23))
+summary(model2_HD_GRF23)
+ranova(model2_HD_GRF23)$Pr[2]      
+
+##################### HD_PL22 ############################
+
+model2_HD_PL22=lmer(mydata$HD_PL22~(1|ID)+(1|Rep), data=mydata) #removed rep
+hist(residuals(model2_HD_PL22), col="light Blue") #looks normally distribution for HD_PL22
+plot(model2_HD_PL22)            
+summary(model2_HD_PL22)
+ranova(model2_HD_PL22)$Pr[2]         
+
+#Heritability estimation (This was done is excel by copying the variance of ID and residual)
+Var1=data.frame(VarCorr(model2_HD_PL22)) #extracting variance components
+(Var1$vcov[1]^2)/((Var1$vcov[1]^2)+((Var1$vcov[3]^2)/2))
+
+#H2_HD_PL22 <- sigma(model2_HD_PL22, "ID")^2 / (sigma(model2_HD_PL22, "ID")^2 + sigma(model2_HD_PL22, "Residual")^2/2) #estimates narrow sense heritability
+
+##################### HD_GRF22 ############################
+model2_HD_GRF22=lmer(mydata$HD_GRF22~(1|ID)+(1|Rep), data=mydata)  
+boxplot(mydata$HD_GRF22)
+summary(model2_HD_GRF22)
+ranova(model2_HD_GRF22)$Pr[2]
+#since the GRF22 had very low heritability, the outliers were removed as follows which increased heritability estimation and imoprved anova results also 
+heading_grf22_data=Heading_data[, c(1,2,3,7)]
+heading_grf22_data=subset(heading_grf22_data, heading_grf22_data$HD_GRF22<=175)
+model3_HD_GRF22=lmer(heading_grf22_data$HD_GRF22~(1|ID)+(1|Rep), data=heading_grf22_data)  
+
+
+hist(residuals(model3_HD_GRF22), col="light Blue") # skewed to right
+hist(residuals(model2_HD_GRF22), col="light Blue") # skewed to right
+summary(model3_HD_GRF22)       
+ranova(model3_HD_GRF22)$Pr[2]           
+boxplot(residuals(model3_HD_GRF22)) 
+Var2=data.frame(VarCorr(model2_HD_GRF22))
+Var2   #extracting variance components
+(Var2$vcov[1]^2)/((Var2$vcov[1]^2)+((Var2$vcov[3]^2)/2))
+
+##################### HD_PL21 ############################
+model2_HD_PL21=lmer(mydata$HD_PL21~(1|ID)+(1|Rep), data=mydata)
+#wHere the model fail to converge when rep was also added. The same happened in height also but height issue was solved with simple change. Here its difficult, So rep was removed. If ranova ran with such then singular error also found. 
+plot(mydata$HD_PL21)
+
+hist(residuals(model2_HD_PL21), col="light Blue") #residuals histogram check looks normally distribution for HD_PL21
+plot(model2_HD_PL21)              
+summary(model2_HD_PL21)         
+ranova(model2_HD_PL21)$Pr[2]
+
+Var3=data.frame(VarCorr(model2_HD_PL21))
+Var3   #extracting variance components
+(Var3$vcov[1]^2)/((Var3$vcov[1]^2)+((Var3$vcov[2]^2)/2))
+
+####################### HD GRF21 ##############################
+model2_HD_GRF21=lmer(mydata$HD_GRF21~(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_HD_GRF21), col="light Blue") #residuals histogram check looks normally distribution for HD_GRF21
+plot(model2_HD_GRF21)              
+summary(model2_HD_GRF21)         
+ranova(model2_HD_GRF21)$Pr[2]    
+
+sigma(model2_FLW_PL21, "ID")
+var_comps=as.data.frame(VarCorr(model2_HD_GRF21))
+var_comps
+signa_g_squared=var_comps$GRP[ID,ID]
+signa_g_squared
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+
+VarCorr(model2_HD_GRF22)
+VarCorr(model2_HD_PL21)
+VarCorr(model2_HD_GRF21)
+
+```
+
+##     BLUP calclation
+```{r}
+
+#################### HD_PL23 ############################
+#fixef(mymodel2) #For BLUE analysis
+BLUP_HD_PL23=ranef(model2_HD_PL23)$ID
+head(BLUP_HD_PL23)
+fixef(model2_HD_PL23) # this is the intercept which is basically applied to each lines. when this is added to ranef which can be negative or positive we get normal blup estimates. 
+BLUP_normal_HD_PL23=fixef(model2_HD_PL23)+BLUP_HD_PL23
+#Extracting BLUP values and converting to normal scale. Adding intercept value of fixed effect to correct BLUP to normal scale
+tail(BLUP_normal_HD_PL23)
+write.csv(BLUP_normal_HD_PL23, file="BLUP_HD_PL23.csv") 
+hist(BLUP_normal_HD_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_HD_PL23)$ID, file="BLUP_HD_PL23.csv") #FOR GETTING ONLY THE RANEF TERM. tHIS WAS USED TO MAKE CONSISTENT DATA FOR CORVAIANCE EFFECT DATASET
+
+#################### HD_GRF23 ############################
+#fixef(mymodel2) #For BLUE analysis
+BLUP_HD_GRF23=ranef(model2_HD_GRF23)$ID
+head(BLUP_HD_GRF23)
+fixef(model2_HD_GRF23) # this is the intercept which is basically applied to each lines. when this is added to ranef which can be negative or positive we get normal blup estimates. 
+BLUP_normal_HD_GRF23=fixef(model2_HD_GRF23)+BLUP_HD_GRF23
+#Extracting BLUP values and converting to normal scale. Adding intercept value of fixed effect to correct BLUP to normal scale
+tail(BLUP_normal_HD_GRF23)
+write.csv(BLUP_normal_HD_GRF23, file="BLUP_HD_GRF23.csv") 
+hist(BLUP_normal_HD_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_HD_GRF23)$ID, file="BLUP_HD_GRF23.csv") 
+
+#################### HD_PL22 ############################
+#fixef(mymodel2) #For BLUE analysis
+BLUP_HD_PL22=ranef(model2_HD_PL22)$ID
+head(BLUP_HD_PL22)
+fixef(model2_HD_PL22) # this is the intercept which is basically applied to each lines. when this is added to ranef which can be negative or positive we get normal blup estimates. 
+BLUP_normal_HD_PL22=fixef(model2_HD_PL22)+BLUP_HD_PL22
+#Extracting BLUP values and converting to normal scale. Adding intercept value of fixed effect to correct BLUP to normal scale
+tail(BLUP_normal_HD_PL22)
+write.csv(BLUP_normal_HD_PL22, file="BLUP_HD_PL22.csv") 
+hist(BLUP_normal_HD_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_HD_PL22)$ID, file="BLUP_HD_PL22.csv") 
+##################### HD_GRF 22 ############################
+fixef(model3_HD_GRF22)
+ranef(model3_HD_GRF22)$ID
+BLUP_normal_HD_GRF22= fixef(model3_HD_GRF22)+ ranef(model3_HD_GRF22)$ID
+tail(BLUP_normal_HD_GRF22)
+write.csv(BLUP_normal_HD_GRF22, file="BLUP_HD_GRF22.csv") 
+hist(BLUP_normal_HD_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model3_HD_GRF22)$ID, file="BLUP_HD_GRF22.csv") 
+##################### HD_PL21 ############################
+fixef(model2_HD_PL21)
+ranef(model2_HD_PL21)$ID
+BLUP_normal_HD_PL21= fixef(model2_HD_PL21)+ranef(model2_HD_PL21)$ID
+tail(BLUP_normal_HD_PL21)
+write.csv(BLUP_normal_HD_PL21, file="BLUP_HD_PL21.csv") 
+hist(BLUP_normal_HD_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_HD_PL21)$ID, file="BLUP_HD_PL21.csv") 
+##################### HD_GRF21 ############################
+fixef(model2_HD_GRF21)
+ranef(model2_HD_GRF21)$ID
+BLUP_normal_HD_GRF21= fixef(model2_HD_GRF21)+ranef(model2_HD_GRF21)$ID
+tail(BLUP_normal_HD_GRF21)
+write.csv(BLUP_normal_HD_GRF21, file="BLUP_HD_GRF21.csv") 
+hist(BLUP_normal_HD_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_HD_GRF21)$ID, file="BLUP_HD_GRF21.csv") 
+##### multipe envt 
+fixef(model2_heading)
+ranef(model2_heading)$ID
+BLUP_normal_heading= fixef(model2_heading)+ranef(model2_heading)$ID
+tail(BLUP_normal_heading)
+write.csv(BLUP_normal_heading, file="BLUP_Heading_allenv.csv") 
+hist(BLUP_normal_heading$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_heading_grf)
+ranef(model2_heading_grf)$ID
+BLUP_normal_heading_grf= fixef(model2_heading_grf)+ranef(model2_heading_grf)$ID
+tail(BLUP_normal_heading_grf)
+write.csv(BLUP_normal_heading_grf, file="BLUP_Heading_GRF.csv") 
+hist(BLUP_normal_heading_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_heading_plains)
+ranef(model2_heading_plains)$ID
+BLUP_normal_heading_plains= fixef(model2_heading_plains)+ranef(model2_heading_plains)$ID
+tail(BLUP_normal_heading_plains)
+write.csv(BLUP_normal_heading_plains, file="BLUP_Heading_PL.csv") 
+hist(BLUP_normal_heading_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+```
+
+# 2. Plant height
+##    subsetting data
+```{r}
+#Subsetting heading data
+height_data <- mydata[, c("Cultivar","ID","Rep", "PHT_PL23","PHT_GRF23","PHT_PL22","PHT_GRF22","PHT_PL21", "PHT_GRF21" )]
+height_data_plains <- height_data[, c("Cultivar","ID","Rep", "PHT_PL23", "PHT_PL22", "PHT_PL21" )]
+height_data_griffin <- height_data[, c("Cultivar","ID","Rep", "PHT_GRF23", "PHT_GRF22", "PHT_GRF21" )]
+height_melt_plains <- reshape2::melt(height_data_plains, varnames = c("Cultivar", "Rep"))
+height_melt_griffin <- reshape2::melt(height_data_griffin, varnames = c("Cultivar", "Rep"))
+height_melt_data <- reshape2::melt(height_data, varnames = c("Cultivar", "Rep"))
+head(height_data)
+str(height_data)
+```
+
+##    Plotting
+###     SImple plot
+```{r}
+plot(height_data$PHT_PL23, col=height_data$Rep,xlab = "Lines", ylab = "Height (cm)  for PL22 ", ylim=c(60, 140))
+plot(height_data$PHT_GRF23, col=height_data$Rep,xlab = "Lines", ylab = "Height (cm)  for PL22 ", ylim=c(50, 140))
+plot(height_data$PHT_PL22, col=height_data$Rep,xlab = "Lines", ylab = "Height (cm)  for PL22 ", ylim=c(50, 140))
+plot(height_data$PHT_GRF22,col=height_data$Rep,xlab = "Lines", ylab = "Height (cm)  for GRF22",ylim=c(50, 140))
+plot(height_data$PHT_PL21,col=height_data$Rep,xlab = "Lines", ylab = "Height (cm) for PL21",ylim=c(50, 140))
+plot(height_data$PHT_GRF21,col=height_data$Rep,xlab = "Lines", ylab = "Height (cm) for GRF21",ylim=c(50, 140))
+```
+###     box plot
+```{r}
+# Create the box plot
+ggplot(height_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Height by Environment",
+       x = "Environment", y = "Height in cm",
+       fill = "Environment") +
+  ylim(60, 140) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size=10),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15))
+
+```
+
+###violin plot
+```{r}
+
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+
+#   Create violin plot by environment only
+ggplot(height_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Height by Environment",
+       x = "Environment", y = "Height in cm",
+       fill = "Environment") +
+  ylim(60, 150) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+
+#for papER
+```{r}
+Height_graph_data=height_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(Height_graph_data)=new_column_names
+str(Heading_graph_data)
+
+
+Height_graph_melt=reshape2::melt(Height_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(Height_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "PHT (cm)",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black" ),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face="bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+##    Data validity
+###     Levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,height_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, height_melt_data)
+
+#based on environment
+leveneTest(value~variable,height_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,height_melt_griffin,center="mean")$`Pr(>F)`
+
+fligner.test(value~variable, height_melt_griffin)
+fligner.test(value~variable, height_melt_plains)
+
+#The height data has equal variance so we can combine
+```
+
+###      Normality check
+```{r}
+shapiro.test(height_data$PH_PL23) #individual environment
+shapiro.test(height_data$PH_GRF23)
+shapiro.test(height_data$PHT_PL22)
+shapiro.test(height_data$PH_GRF22)
+shapiro.test(height_data$PH_PL21)
+shapiro.test(height_data$PH_GRF21)
+shapiro.test(height_melt_data$value) ## all env combined
+
+# all environmnet data non-normal for height
+```
+##    Linear regression
+```{r}
+
+################### Multiple env for interaction effect  #######################
+model2_height=lmer(height_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=height_melt_data) #Rep singular effect
+summary(model2_height)
+ranova(model2_height)
+
+model2_height_plains=lmer(height_melt_plains$value~+(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=height_melt_plains) 
+summary(model2_height_plains)
+ranova(model2_height_plains)
+
+model2_height_grf=lmer(height_melt_griffin$value~+(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=height_melt_griffin) 
+summary(model2_height_grf)
+ranova(model2_height_grf)
+
+##################### PHT_PL23 ############################
+model2_PHT_PL23=lmer(mydata$PHT_PL23~HD_PL23+(1|ID)+(1|Rep), data=mydata)  #Rep singular so removed, heading date as covariate
+hist(residuals(model2_PHT_PL23), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_PHT_PL23)              
+summary(model2_PHT_PL23)   
+anova(model2_PHT_PL23)
+ranova(model2_PHT_PL23)$Pr[2]     
+
+##################### PHT_GRF23 ############################
+model2_PHT_GRF23=lmer(mydata$PHT_GRF23~HD_GRF23+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_PHT_GRF23), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_PHT_GRF23)              
+summary(model2_PHT_GRF23)         
+ranova(model2_PHT_GRF23)$Pr[2]    
+
+
+##################### PHT_PL22 ###########################
+model2_PHT_PL22=lmer(mydata$PHT_PL22~HD_PL22+(1|ID)+(1|Rep), data=mydata) # REP singular effect
+hist(residuals(model2_PHT_PL22), col="light Blue") #residuals histogram check looks normally distribution for PHT_PL22
+plot(model2_PHT_PL22)              #check residuals for problematic data,i.e diagnostic plot 
+summary(model2_PHT_PL22)         #shows output for coefficients of random effects, ID which is the BLUP of individual ID
+ranova(model2_PHT_PL22)$Pr[2]           #only if there is any fixed effect
+
+##################### PHT_GRF22 ############################
+model2_PHT_GRF22=lmer(mydata$PHT_GRF22~HD_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_GRF_PL22), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_PHT_GRF22)              
+summary(model2_PHT_GRF22)         
+ranova(model2_PHT_GRF22)$Pr[2]          
+
+##################### PHT_PL21 ############################
+model2_PHT_PL21=lmer(mydata$PHT_PL21~HD_PL21+(1|ID)+(1|Rep), data=mydata)
+#model2_PHT_PL21=lmer(mydata$PHT_PL21~HD_PL21+(1|ID)+(1|Rep), data=mydata)  #Heading as covariate 
+#with initial data on 2021 plains height data the Pioneer_26R31_CG Block 2 data was around 71 cm which was a outlier and giving convergence problem while running model.Therefore data was checked and adjusted to 74 based on multiple observations taken for height. Now there is no convergence problem
+plot(mydata$PHT_PL21)
+hist(residuals(model2_PHT_PL21), col="light Blue") #residuals histogram check looks normally distribution for PHT_PL21
+plot(model2_PHT_PL21)              
+summary(model2_PHT_PL21)         
+ranova(model2_PHT_PL21)$Pr[2]
+
+####################### PHT_GRF21 ##############################
+model2_PHT_GRF21=lmer(mydata$PHT_GRF21~HD_GRF21+(1|ID)+(1|Rep), data=mydata) # Including Rep gave singular error and it had no variance so rep was excluded as suggested. 
+#model2_PHT_GRF21=lmer(mydata$PHT_GRF21~+HD_GRF21+(1|ID), data=mydata)
+hist(residuals(model2_PHT_GRF21), col="light Blue") #residuals histogram check looks normally distribution for PHT_GRF21
+plot(model2_PHT_GRF21)              
+summary(model2_PHT_GRF21)         
+ranova(model2_PHT_GRF21)$Pr[2] 
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_PH_PL22)
+VarCorr(model2_PH_GRF22)
+VarCorr(model2_PH_PL21)
+VarCorr(model2_PH_GRF21)
+
+```
+
+##    BLUP estimation
+
+```{r}
+
+##### multipe envt 
+fixef(model2_height)
+ranef(model2_height)
+BLUP_normal_height= fixef(model2_height)+ranef(model2_height)$ID
+tail(BLUP_normal_height)
+write.csv(BLUP_normal_height, file="BLUP_height_allenv.csv") 
+hist(BLUP_normal_height$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_height_grf)
+ranef(model2_height_grf)$ID
+BLUP_normal_height_grf= fixef(model2_height_grf)+ranef(model2_height_grf)$ID
+tail(BLUP_normal_height_grf)
+write.csv(BLUP_normal_height_grf, file="BLUP_height_GRF.csv") 
+hist(BLUP_normal_height_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_height_plains)
+ranef(model2_height_plains)$ID
+BLUP_normal_height_plains= fixef(model2_height_plains)+ranef(model2_height_plains)$ID
+tail(BLUP_normal_height_plains)
+write.csv(BLUP_normal_height_plains, file="BLUP_height_PL.csv") 
+hist(BLUP_normal_height_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### PHT_PL23 ############################
+ranef(model2_PHT_PL23)$ID
+#BLUP_normal_PHT_PL23= fixef(model2_PHT_PL23)+ranef(model2_PHT_PL23)$ID #making blup to normal scale by adding only intercept but not effect of heading date
+#head(BLUP_normal_PHT_PL23)
+#write.csv(BLUP_normal_PHT_PL23, file="BLUP_PHT_PL23.csv") 
+write.csv(ranef(model2_PHT_PL23)$ID, file="BLUP_PHT_PL23.csv") # for getting just the BLUP values without normalizing 
+hist(BLUP_normal_PHT_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+shapiro.test(BLUP_normal_PHT_PL23$`(Intercept)`)
+
+##################### PHT_GRF23 ############################
+
+BLUP_normal_PHT_GRF23= fixef(model2_PHT_GRF23)+ranef(model2_PHT_GRF23)$ID
+BLUP_normal_PHT_GRF23
+write.csv(BLUP_normal_PHT_GRF23, file="BLUP_PHT_GRF23.csv") 
+hist(BLUP_normal_PHT_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+shapiro.test(BLUP_normal_PHT_GRF23$`(Intercept)`)
+
+write.csv(ranef(model2_PHT_GRF23)$ID, file="BLUP_PHT_GRF23.csv") # for getting just the BLUP values without normalizing
+
+##################### PHT_PL22 ############################
+#normalizing the BLUPS
+fixef(model2_PHT_PL22) 
+BLUP_PHT_PL22=ranef(model2_PHT_PL22)$ID+fixef(model2_PHT_PL22)[1] #taking only the intercept of random effects
+
+head(BLUP_PHT_PL22)
+tail(BLUP_PHT_PL22)
+write.csv(BLUP_normal_PHT_PL22, file="BLUP_PHT_PL22.csv") 
+hist(BLUP_normal_PHT_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PHT_PL22)$ID, file="BLUP_PHT_PL22.csv") # for getting just the BLUP values without normalizing
+
+##################### PHT_GRF 22 ############################
+fixef(model2_PHT_GRF22)
+ranef(model2_PHT_GRF22)$ID
+BLUP_normal_PHT_GRF22= fixef(model2_PHT_GRF22)+ranef(model2_PHT_GRF22)$ID
+tail(BLUP_normal_PHT_GRF22)
+write.csv(BLUP_normal_PHT_GRF22, file="BLUP_PHT_GRF22.csv") 
+hist(BLUP_normal_PHT_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PHT_GRF22)$ID, file="BLUP_PHT_GRF22.csv") # for getting just the BLUP values without normalizing
+##################### PHT_PL21 ############################
+fixef(model2_PHT_PL21)
+ranef(model2_PHT_PL21)$ID
+BLUP_normal_PHT_PL21= fixef(model2_PHT_PL21)+ranef(model2_PHT_PL21)$ID
+tail(BLUP_normal_PHT_PL21)
+write.csv(BLUP_normal_PHT_PL21, file="BLUP_PHT_PL21.csv") 
+hist(BLUP_normal_PHT_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PHT_PL21)$ID, file="BLUP_PHT_PL21.csv") # for getting just the BLUP values without normalizing
+##################### PHT_GRF21 ############################
+fixef(model2_PHT_GRF21)
+ranef(model2_PHT_GRF21)$ID
+BLUP_normal_PHT_GRF21= fixef(model2_PHT_GRF21)+ranef(model2_PHT_GRF21)$ID
+tail(BLUP_normal_PHT_GRF21)
+write.csv(BLUP_normal_PHT_GRF21, file="BLUP_PHT_GRF21.csv") 
+hist(BLUP_normal_PHT_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_PHT_GRF21)$ID, file="BLUP_PHT_GRF21.csv") # for getting just the BLUP values without normalizing
+```
+
+ 
+ ###################################################################################################
+ 
+# 3. Peduncle length
+##  Subsetting data
+```{r}
+#Subsetting peduncle data
+peduncle_data <- mydata[, c("Cultivar","ID","Rep", "PDL_PL23","PDL_GRF23","PDL_PL22", "PDL_GRF22", "PDL_PL21", "PDL_GRF21" )]
+peduncle_melt_data <- reshape2::melt(peduncle_data, varnames = c("Cultivar", "Rep"))
+peduncle_data_griffin <-peduncle_data[, c("Cultivar","ID","Rep", "PDL_GRF23", "PDL_GRF22", "PDL_GRF21" )]
+peduncle_data_plains=peduncle_data[, c("Cultivar","ID","Rep", "PDL_PL23", "PDL_PL22", "PDL_PL21" )]
+peduncle_melt_plains <- reshape2::melt(peduncle_data_plains, varnames = c("Cultivar", "Rep"))
+peduncle_melt_griffin <- reshape2::melt(peduncle_data_griffin, varnames = c("Cultivar", "Rep"))
+head(peduncle_data)
+str(peduncle_data)
+```
+
+##  Plotting
+###   Simple plot
+```{r}
+plot(peduncle_data$PDL_PL23, col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for PL22 ", ylim=c(0, 50))
+plot(peduncle_data$PDL_GRF23, col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for PL22 ", ylim=c(0, 50))
+plot(peduncle_data$PDL_PL22, col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for PL22 ", ylim=c(0, 50))
+plot(peduncle_data$PDL_GRF22,col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for GRF22",ylim=c(0, 50))
+plot(peduncle_data$PDL_PL21,col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for PL21",ylim=c(0, 50))
+boxplot(peduncle_data$PDL_GRF22)
+plot(peduncle_data$PDL_GRF21,col=peduncle_data$Rep,xlab = "Lines", ylab = "Peduncle (cm) for GRF21",ylim=c(0, 50))
+```
+
+###   Box plot
+```{r}
+
+head(peduncle_melt_data)
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(peduncle_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(value))) + #Heading date by environment by repliate
+#geom_boxplot(color = "black", outlier.color = "black") +
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Peduncle length by Environment",
+       x = "Environment", y = "Peduncle length in cm",
+       fill = "Environment") +
+  ylim(0, 35) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size=10),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15))
+```
+
+
+```{r}
+Peduncle_graph_data=peduncle_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(Peduncle_graph_data)=new_column_names
+str(Peduncle_graph_data)
+
+
+Peduncle_graph_melt=reshape2::melt(Peduncle_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(Peduncle_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "PDL (cm)",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face="bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### violin plot
+```{r}
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+
+#   Create violin plot by environment only
+ggplot(peduncle_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Peduncle length by Environment",
+       x = "Environment", y = "Peduncle length in cm",
+       fill = "Environment") +
+  ylim(0,40) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+       
+##  Data validity
+###   levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,peduncle_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, peduncle_melt_data)
+# all of the data dont support equal variance so cannot combine
+#based on environment
+leveneTest(value~variable,peduncle_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,peduncle_melt_griffin,center="mean")$`Pr(>F)`
+
+#griffin and plains data have no equal variance
+fligner.test(value~variable, peduncle_melt_griffin)
+fligner.test(value~variable, peduncle_melt_plains)
+
+#Overall The peduncle data has no equal variance at all so we cant combine
+```
+
+###   Normality check
+```{r}
+shapiro.test(peduncle_data$PDL_PL23) #individual environment
+shapiro.test(peduncle_data$PDL_GRF23)
+shapiro.test(peduncle_data$PDL_PL22)
+shapiro.test(peduncle_data$PDL_GRF22)
+shapiro.test(peduncle_data$PDL_PL21)
+shapiro.test(peduncle_data$PDL_GRF21)
+shapiro.test(peduncle_melt_data$value) ## all env combined
+#2022 data is normal and NOT 2021 and 2023
+```
+
+##  Linear regression
+```{r}
+
+################### Multiple env for interaction effect  #######################
+model2_peduncle=lmer(peduncle_melt_data$value~(1|ID)+(1|variable)+(1|ID:variable), data=peduncle_melt_data) #rep singular
+summary(model2_peduncle)
+ranova(model2_peduncle)
+
+model2_peduncle_plains=lmer(peduncle_melt_plains$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=peduncle_melt_plains)
+summary(model2_peduncle_plains)
+ranova(model2_peduncle_plains)
+
+model2_peduncle_grf=lmer(peduncle_melt_griffin$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=peduncle_melt_griffin)
+summary(model2_peduncle_grf)
+ranova(model2_peduncle_grf)
+
+##################### PDL_PL23 ############################
+plot(mydata$PDL_PL23)
+#model2_PDL_PL23=lmer(mydata$PDL_PL23~(1|ID), data=mydata)  
+model2_PDL_PL23=lmer(mydata$PDL_PL23~HD_PL23+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_PDL_PL23), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_PDL_PL23)              
+summary(model2_PDL_PL23)         
+ranova(model2_PDL_PL23)$Pr[2]   
+
+##################### PDL_GRF23 ############################
+plot(mydata$PDL_GRF23)
+model2_PDL_GRF23=lmer(mydata$PDL_GRF23~HD_GRF23+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_PDL_GRF23), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_PDL_GRF23)              
+summary(model2_PDL_GRF23)         
+ranova(model2_PDL_GRF23)$Pr[2]    
+
+##################### PDL_PL22 ############################
+model2_PDL_PL22=lmer(mydata$PDL_PL22~HD_PL22+(1|ID)+(1|Rep), data=mydata) #No co-variate; Both ID and Rep are treated as random variables
+hist(residuals(model2_PDL_PL22), col="light Blue") #residuals histogram check looks normally distribution for PDL_PL22
+plot(model2_PDL_PL22)              #check residuals for problematic data,i.e diagnostic plot 
+summary(model2_PDL_PL22)         #shows output for coefficients of random effects, ID which is the BLUP of individual ID
+ranova(model2_PDL_PL22)$Pr[2]            #for random effect
+#anova(model2_yield) #only run if there is any fixed effects in the model term
+
+##################### PDL_GRF22 ############################
+model2_PDL_GRF22=lmer(mydata$PDL_GRF22~HD_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_PDL_GRF22), col="light Blue") #residuals histogram LOOKS normal for PDL grf 22
+plot(model2_PDL_GRF22)              
+summary(model2_PDL_GRF22)         
+ranova(model2_PDL_GRF22)$Pr[2]       
+
+##################### PDL_PL21 ############################
+
+model2_PDL_PL21=lmer(mydata$PDL_PL21~HD_PL21+(1|ID)+(1|Rep), data=mydata) #Convergence error so rep removed
+plot(mydata$PDL_PL21)
+hist(residuals(model2_PDL_PL21), col="light Blue") #residuals histogram check looks normally distribution for PDL_PL21
+plot(model2_PDL_PL21)              
+summary(model2_PDL_PL21)         
+ranova(model2_PDL_PL21)$Pr[2]
+
+####################### pdl_grf21 ##############################
+model2_PDL_GRF21=lmer(mydata$PDL_GRF21~HD_GRF21+(1|ID)+(1|Rep), data=mydata) # Including Rep gave singular error and it had no variance so rep was excluded as suggested. 
+
+hist(residuals(model2_PDL_GRF21), col="light Blue") #residuals histogram check looks normally distribution for PDL_GRF21
+plot(model2_PDL_GRF21)              
+summary(model2_PDL_GRF21)         
+ranova(model2_PDL_GRF21)$Pr[2]    
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_PDL_PL22)
+VarCorr(model2_PDL_GRF22)
+VarCorr(model2_PDL_PL21)
+VarCorr(model2_PDL_GRF21)
+```
+
+##  BLUP estimation
+```{r}
+##### multipe envt 
+fixef(model2_peduncle)
+ranef(model2_peduncle)$ID
+BLUP_normal_peduncle= fixef(model2_peduncle)+ranef(model2_peduncle)$ID
+tail(BLUP_normal_peduncle)
+write.csv(BLUP_normal_peduncle, file="BLUP_peduncle_allenv.csv") 
+hist(BLUP_normal_peduncle$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_peduncle_grf)
+ranef(model2_peduncle_grf)$ID
+BLUP_normal_peduncle_grf= fixef(model2_peduncle_grf)+ranef(model2_peduncle_grf)$ID
+tail(BLUP_normal_peduncle_grf)
+write.csv(BLUP_normal_peduncle_grf, file="BLUP_peduncle_GRF.csv") 
+hist(BLUP_normal_peduncle_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+fixef(model2_peduncle_plains)
+ranef(model2_peduncle_plains)$ID
+BLUP_normal_peduncle_plains= fixef(model2_peduncle_plains)+ranef(model2_peduncle_plains)$ID
+tail(BLUP_normal_peduncle_plains)
+write.csv(BLUP_normal_peduncle_plains, file="BLUP_peduncle_PL.csv") 
+hist(BLUP_normal_peduncle_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### PDL_PL23 ############################
+fixef(model2_PDL_PL23)
+ranef(model2_PDL_PL23)$ID
+BLUP_normal_PDL_PL23= fixef(model2_PDL_PL23)+ranef(model2_PDL_PL23)$ID
+tail(BLUP_normal_PDL_PL23)
+write.csv(BLUP_normal_PDL_PL23, file="BLUP_PDL_PL23.csv") 
+hist(BLUP_normal_PDL_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_PDL_PL23)$ID, file="BLUP_PDL_PL23.csv") # for getting just the BLUP values without normalizing 
+
+##################### PDL_GRF23 ############################
+fixef(model2_PDL_GRF23)
+ranef(model2_PDL_GRF23)$ID
+BLUP_normal_PDL_GRF23= fixef(model2_PDL_GRF23)+ranef(model2_PDL_GRF23)$ID
+tail(BLUP_normal_PDL_GRF23)
+write.csv(BLUP_normal_PDL_GRF23, file="BLUP_PDL_GRF23.csv") 
+hist(BLUP_normal_PDL_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PDL_GRF23)$ID, file="BLUP_PDL_GRF23.csv") # for getting just the BLUP values without normalizing 
+#################### PDL_PL22 ############################
+#fixef(mymodel2) #For BLUE analysis
+BLUP_PDL_PL22=ranef(model2_PDL_PL22)$ID
+head(BLUP_PDL_PL22)
+fixef(model2_PDL_PL22)  
+BLUP_normal_PDL_PL22=fixef(model2_PDL_PL22)+BLUP_PDL_PL22
+#Extracting BLUP values and converting to normal scale. Adding intercept value of fixed effect to correct BLUP to normal scale
+tail(BLUP_normal_PDL_PL22)
+write.csv(BLUP_normal_PDL_PL22, file="BLUP_PDL_PL22.csv") 
+hist(BLUP_normal_PDL_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PDL_PL22)$ID, file="BLUP_PDL_PL22.csv") # for getting just the BLUP values without normalizing 
+
+##################### PDL_GRF 22 ############################
+fixef(model2_PDL_GRF22)
+ranef(model2_PDL_GRF22)$ID
+BLUP_normal_PDL_GRF22= fixef(model2_PDL_GRF22)+ranef(model2_PDL_GRF22)$ID
+tail(BLUP_normal_PDL_GRF22)
+write.csv(BLUP_normal_PDL_GRF22, file="BLUP_PDL_GRF22.csv") 
+hist(BLUP_normal_PDL_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PDL_GRF22)$ID, file="BLUP_PDL_GRF22.csv") # for getting just the BLUP values without normalizing 
+
+##################### PDL_PL21 ############################
+fixef(model2_PDL_PL21)
+ranef(model2_PDL_PL21)$ID
+BLUP_normal_PDL_PL21= fixef(model2_PDL_PL21)+ranef(model2_PDL_PL21)$ID
+tail(BLUP_normal_PDL_PL21)
+write.csv(BLUP_normal_PDL_PL21, file="BLUP_PDL_PL21.csv") 
+hist(BLUP_normal_PDL_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_PDL_PL21)$ID, file="BLUP_PDL_PL21.csv") # for getting just the BLUP values without normalizing 
+##################### PDL_GRF21 ############################
+fixef(model2_PDL_GRF21)
+ranef(model2_PDL_GRF21)$ID
+BLUP_normal_PDL_GRF21= fixef(model2_PDL_GRF21)+ranef(model2_PDL_GRF21)$ID
+tail(BLUP_normal_PDL_GRF21)
+write.csv(BLUP_normal_PDL_GRF21, file="BLUP_PDL_GRF21.csv") 
+hist(BLUP_normal_PDL_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_PDL_GRF21)$ID, file="BLUP_PDL_GRF21.csv") # for getting just the BLUP values without normalizing 
+```
+
+ 
+ ###################################################################################################
+ 
+ 
+ 
+ 
+# 4. Lodging
+##  Subsetting data
+```{r}
+#Subsetting heading data
+#lodging_data <- mydata[, c("Cultivar","ID","Rep", "LG_GRF23","LG_PL22", "LG_GRF22", "LG_PL21", "LG_GRF21" )]
+
+#since the format of 1-8 THAT i took data wasnt showing significance so tried converting them to 1 to 4 format 
+
+#lodging_data=read.csv("/Users/madhavsubedi/Library/CloudStorage/OneDrive-UniversityofGeorgia/01_PhD/01_Research/Data_analysis/GWAS analysis/Final analysis/Agronomic data/Phenotype and genotype data/Lodging_formatted_1to4.csv", head=TRUE)
+
+
+#lodging_data$Cultivar=as.factor(lodging_data$Cultivar)
+#lodging_data$ID=as.factor(lodging_data$ID)
+#lodging_data$Rep=as.factor(lodging_data$Rep)
+
+#hERE I just copied the 1 to 4 SCALE DATA TO THE ORGINAL PHENOTYPE DATASET FOR ALL TRAITS
+lodging_data=mydata[,c("Cultivar","ID","Rep","LG_GRF23","LG_PL22", "LG_GRF22","LG_PL21","LG_GRF21")]
+
+
+
+head(lodging_data)
+str(lodging_data)
+
+lodging_data_plains=lodging_data[, c("Cultivar","ID","Rep","LG_PL22", "LG_PL21")]
+lodging_data_Grf=lodging_data[, c("Cultivar","ID","Rep","LG_GRF23","LG_GRF22","LG_GRF21" )]
+
+lodging_melt_plains <- reshape2::melt(lodging_data_plains, varnames = c("Cultivar", "Rep"))
+lodging_melt_Grf <- reshape2::melt(lodging_data_Grf, varnames = c("Cultivar", "Rep"))
+lodging_melt_data<- reshape2::melt(lodging_data, varnames = c("Cultivar", "Rep"))
+```
+
+##  Plotting
+###   Simple plot
+```{r}
+
+plot(lodging_data$LG_GRF23,col=lodging_data$Rep,xlab = "Lines", ylab = "Lodging  for GRF23")
+plot(lodging_data$LG_PL22, col=lodging_data$Rep,xlab = "Lines", ylab = "Lodging  for PL22 ")
+plot(lodging_data$LG_GRF22,col=lodging_data$Rep,xlab = "Lines", ylab = "Lodging  for GRF22")
+plot(lodging_data$LG_PL21,col=lodging_data$Rep,xlab = "Lines", ylab = "Lodging  for PL21")
+plot(lodging_data$LG_GRF21,col=lodging_data$Rep,xlab = "Lines", ylab = "Lodging  for GRF21")
+
+```
+
+###   Histogram
+```{r}
+#Option 1
+
+
+lodging_melt_data$RepID <- paste(lodging_melt_data$variable, lodging_melt_data$Rep, sep="_")
+
+ggplot(lodging_melt_data, aes(x = value)) + 
+  geom_histogram(binwidth = 2, color="black", fill="steelblue", alpha=0.7) + 
+  facet_wrap(~ RepID, ncol=2) + 
+  labs(title = "Distribution of lodging by Environment and Replication", x = "Lodging", y = "Frequency"
+       )
+```
+
+###   BOX PLOT
+```{r}
+# OPTION 1: Displaying data by environment only
+boxplot(value~variable, data=lodging_melt_data,     
+        xlab ="",
+        ylab = "",
+        border= "black",
+        col="lavender", 
+        lwd=1, #make internal box plot line bold
+        cex.axis=1, #make x and y-axis font larger
+        cex.font= 1)
+title(xlab="Environment", ylab="Lodging", font.lab=2, 
+      line=2.5, #move x and y-lab closer to axis
+      cex.lab =1.5, font=2)
+```
+
+##  Data validity
+###   Levene's test
+```{r}
+library(car)
+
+#Melt the data frame from wide to long format
+lodging_melt_data <- reshape2::melt(lodging_data, varnames = c("Cultivar", "Rep"))
+
+#overal levenes test
+leveneTest(value~variable,lodging_melt_data,center="mean")$`Pr(>F)` 
+
+# There isnt equal variance among environments. Now lets test in between griffin and plains. We need to subset it first
+
+lodging_plains_data=subset(lodging_melt_data, variable=="LG_PL22"| variable=="LG_PL21")
+lodging_Grf_data=subset(lodging_melt_data, variable=="LG_GRF22"| variable=="LG_GRF21")
+
+
+leveneTest(value~variable,lodging_melt_Grf,center="mean")$`Pr(>F)` 
+leveneTest(value~variable,lodging_melt_plains,center="mean")$`Pr(>F)` 
+
+#All of the environments including griffin combined and plains combined dont have equal variance
+
+```
+
+###   Normality check
+
+```{r}
+shapiro.test(lodging_melt_data$value)$p.value
+shapiro.test(lodging_melt_Grf$value)$p.value
+shapiro.test(lodging_melt_plains$value)$p.value
+
+shapiro.test(lodging_data$LG_PL22)
+shapiro.test(lodging_data$LG_GRF22)
+shapiro.test(lodging_data$LG_PL21)
+shapiro.test(lodging_data$LG_GRF21)
+
+
+#Lodging is not continuous data so normality check is not necessary
+```
+
+##  Linear regression
+```{r}
+################### Multiple env for interaction effect  #######################
+model2_lodging=lmer(lodging_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=lodging_melt_data) #rep singular
+summary(model2_lodging)
+ranova(model2_lodging)$Pr #all significant
+
+model2_lodging_plains=lmer(lodging_melt_plains$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=lodging_melt_plains)
+summary(model2_lodging_plains)
+ranova(model2_lodging_plains)$Pr #all significant
+
+model2_lodging_Grf=lmer(lodging_melt_Grf$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=lodging_melt_Grf)
+summary(model2_lodging_Grf)
+ranova(model2_lodging_Grf)$Pr #all significant
+
+
+##################### LG_GRF23 ############################
+lodging_data$LG_GRF23
+#model2_LG_GRF23=lmer(lodging_data$LG_GRF23~(1|ID)+(1|Rep),data=lodging_data)
+model2_LG_GRF23=lmer(mydata$LG_GRF23~PHT_GRF23+(1|ID)+(1|Rep), data=mydata)
+hist(residuals(model2_LG_GRF23), col="light Blue") #
+plot(model2_LG_GRF23)              
+summary(model2_LG_GRF23)         
+ranova(model2_LG_GRF23)$Pr[2]   #ID is non significant  
+#anova(model2_yield) #only run if there is any fixed effects in the model term
+
+##################### LG_PL22 ############################
+lodging_data$LG_PL22
+model2_LG_PL22=lmer(mydata$LG_PL22~PHT_PL22+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LG_PL22), col="light Blue") #
+plot(model2_LG_PL22)              
+summary(model2_LG_PL22)         
+ranova(model2_LG_PL22)$Pr[2]     #ID non significant and rep significant
+#anova(model2_yield) #only run if there is any fixed effects in the model term
+
+##################### LG_GRF22 ############################
+plot(lodging_data$LG_GRF22)
+model2_LG_GRF22=lmer(mydata$LG_GRF22~PHT_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_LG_GRF22), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_LG_GRF22)              
+summary(model2_LG_GRF22)         
+ranova(model2_LG_GRF22)$Pr[2]             #The genotypes  are non significant     
+
+##################### LG_PL21 ############################
+
+model2_LG_PL21=lmer(mydata$LG_PL21~PHT_PL21+(1|ID)+(1|Rep), data=mydata) #Singular effect
+plot(lodging_data$LG_PL21)
+hist(residuals(model2_LG_PL21), col="light Blue") 
+plot(model2_LG_PL21)              
+summary(model2_LG_PL21)         
+ranova(model2_LG_PL21)
+
+####################### LG_GRF21 ##############################
+model2_LG_GRF21=lmer(mydata$LG_GRF21~PHT_GRF21+(1|ID)+(1|Rep), data=mydata)
+hist(residuals(model2_LG_GRF21), col="light Blue") #residuals histogram check looks normally distribution for LG_GRF21
+plot(model2_LG_GRF21)              
+summary(model2_LG_GRF21)         
+ranova(model2_LG_GRF21)$Pr[2]   #The genotypes  are non significant   
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_LG_PL22)
+VarCorr(model2_LG_GRF22)
+VarCorr(model2_LG_PL21)
+VarCorr(model2_LG_GRF21)
+```
+
+##  BLUP estimation
+```{r}
+
+#no single environment data was significantly different for ID
+##################### LG_PL21 ############################ 
+
+fixef(model2_LG_PL21)
+ranef(model2_LG_PL21)$ID
+BLUP_normal_LG_PL21= fixef(model2_LG_PL21)+ranef(model2_LG_PL21)$ID
+tail(BLUP_normal_LG_PL21)
+write.csv(BLUP_normal_LG_PL21, file="BLUP_LG_PL21.csv") 
+hist(BLUP_normal_LG_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### LG_GRF23 ############################
+fixef(model2_LG_GRF23)
+ranef(model2_LG_GRF23)$ID
+BLUP_normal_LG_GRF23= fixef(model2_LG_GRF23)+ranef(model2_LG_GRF23)$ID
+tail(BLUP_normal_LG_GRF23)
+write.csv(BLUP_normal_LG_GRF23, file="BLUP_LG_GRF23.csv") 
+hist(BLUP_normal_LG_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### LG_PL22 ############################ 
+fixef(model2_LG_PL22)
+ranef(model2_LG_PL22)$ID
+BLUP_normal_LG_PL22= fixef(model2_LG_PL22)+ranef(model2_LG_PL22)$ID
+tail(BLUP_normal_LG_PL22)
+write.csv(BLUP_normal_LG_PL22, file="BLUP_LG_PL22.csv") 
+hist(BLUP_normal_LG_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+##################### Lodging (5 env) ############################ 
+fixef(model2_lodging)
+ranef(model2_lodging)$ID
+BLUP_normal_lodging= fixef(model2_lodging)+ranef(model2_lodging)$ID
+tail(BLUP_normal_lodging)
+write.csv(BLUP_normal_lodging, file="BLUP_lodging.csv") 
+hist(BLUP_normal_lodging$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### Lodging (grf) ############################
+fixef(model2_lodging_Grf)
+ranef(model2_lodging_Grf)$ID
+BLUP_normal_lodging_Grf= fixef(model2_lodging_Grf)+ranef(model2_lodging_Grf)$ID
+tail(BLUP_normal_lodging_Grf)
+write.csv(BLUP_normal_lodging_Grf, file="BLUP_lodging_Grf.csv") 
+hist(BLUP_normal_lodging_Grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+
+##################### Lodging (Plains) ############################ 
+fixef(model2_lodging_plains)
+ranef(model2_lodging_plains)$ID
+BLUP_normal_lodging_plains= fixef(model2_lodging_plains)+ranef(model2_lodging_plains)$ID
+tail(BLUP_normal_lodging_plains)
+write.csv(BLUP_normal_lodging_plains, file="BLUP_lodging_plains.csv") 
+hist(BLUP_normal_lodging_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+```
+
+# 5. Flag leaf length
+##   Subsetting data
+```{r}
+#Subsetting flag leaf length data
+FLL_data <- mydata[, c("Cultivar","ID","Rep","FLL_PL23","FLL_GRF23", "FLL_PL22", "FLL_GRF22", "FLL_PL21","FLL_GRF21" )]
+FLL_melt_data <- reshape2::melt(FLL_data, varnames = c("Cultivar", "Rep"))
+FLL_data_griffin <-FLL_data[, c("Cultivar","ID","Rep", "FLL_GRF23", "FLL_GRF22", "FLL_GRF21" )]
+FLL_data_plains=FLL_data[, c("Cultivar","ID","Rep", "FLL_PL23", "FLL_PL22", "FLL_PL21" )]
+FLL_melt_plains <- reshape2::melt(FLL_data_plains, varnames = c("Cultivar", "Rep"))
+FLL_melt_griffin <- reshape2::melt(FLL_data_griffin, varnames = c("Cultivar", "Rep"))
+head(FLL_data)
+str(FLL_data)
+
+```
+##   Plotting
+###    Simple plot
+```{r}
+plot(FLL_data$FLL_PL22, col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for PL22", ylim = c(8,25))
+plot(FLL_data$FLL_GRF23, col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for PL22", ylim = c(8,30))
+plot(FLL_data$FLL_PL22, col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for PL22", ylim = c(0,25))
+plot(FLL_data$FLL_GRF22,col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for GRF22")
+plot(FLL_data$FLL_PL21,col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for PL21")
+plot(FLL_data$FLL_GRF21,col=FLL_data$Rep,xlab = "Lines", ylab = "Flag leaf length (cm) for GRF21")
+
+```
+
+###    Box plot
+```{r}
+
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(FLL_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf length by Environment",
+       x = "Environment", y = "FLag leaf length in cm",
+       fill = "Environment") +
+  ylim(10, 35) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size=10),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15))
+```
+
+
+
+```{r}
+FLL_graph_data=FLL_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(FLL_graph_data)=new_column_names
+str(FLL_graph_data)
+
+
+FLL_graph_melt=reshape2::melt(FLL_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(FLL_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "FLL (cm)",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face="bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### Violin plot
+```{r}
+#   Create violin plot by environment only
+ggplot(FLL_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf length by Environment",
+       x = "Environment", y = "Flag leaf length in cm",
+       fill = "Environment") +
+  ylim(0,40) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+##   Data validity
+###   Levene's test
+```{r}
+library(car)
+
+#overal levenes test
+leveneTest(value~variable,FLL_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, FLL_melt_data)
+# all of the data dont support equal variance so cannot combine based on environment
+
+leveneTest(value~variable,FLL_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,FLL_melt_griffin,center="mean")$`Pr(>F)`
+
+#griffin and plains data have no equal variance
+fligner.test(value~variable, FLL_melt_griffin)
+fligner.test(value~variable, FLL_melt_plains)
+
+#Overall FLL data has no equal variance at all so we cant combine
+
+####### however when only 2022 and 2023 data of FLL was combined and tested they both were of equal variance
+
+
+subset_FLL_PL_22_23= subset(FLL_data[, c(1,2,3,4,6)])
+subset_melt_FLL_PL_22_23 <- reshape2::melt(subset_FLL_PL_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_FLL_PL_22_23 ,center="mean")
+
+subset_FLL_GRF_22_23= subset(FLL_data[, c(1,2,3,5,7)])
+subset_melt_FLL_GRF_22_23 <- reshape2::melt(subset_FLL_GRF_22_23, varnames = c("Cultivar", "Rep"))
+
+subset_FLL_22_23= subset(FLL_data[, c(1,2,3,4,5,6,7)])
+subset_melt_FLL_22_23 <- reshape2::melt(subset_FLL_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_FLL_22_23,center="mean")
+```
+
+###   Normality check
+```{r}
+shapiro.test(FLL_data$FLL_PL23)
+shapiro.test(FLL_data$FLL_GRF23)
+shapiro.test(FLL_data$FLL_GRF22)
+shapiro.test(FLL_data$FLL_PL21)
+shapiro.test(FLL_data$FLL_GRF21)  
+shapiro.test(FLL_melt_data$value)
+
+#ONLY fll of griffin 2021 is normal
+```
+
+##   Linear regression
+```{r}
+################### Multiple env for interaction effect  #######################
+model2_FLL=lmer(FLL_melt_data$value~(1|Rep)+(1|ID)+(1|variable), data=FLL_melt_data) #gxe singular
+hist(residuals(model2_FLL), col="light Blue") 
+summary(model2_FLL)
+ranova(model2_FLL)
+
+# the GXE was found non signiciant for FLL when all envt were combined
+
+model2_FLL_plains=lmer(FLL_melt_plains$value~(1|ID)+(1|variable)+(1|ID:variable),data=FLL_melt_plains)
+summary(model2_FLL_plains)
+ranova(model2_FLL_plains)
+
+model2_FLL_grf=lmer(FLL_melt_griffin$value~(1|ID)+(1|variable),data=FLL_melt_griffin)  #gxe singular
+summary(model2_FLL_grf)
+ranova(model2_FLL_grf)
+
+
+### Now lets test for FLL including only 2022 and 2023 data
+
+model2_FLL_22_23_plains=lmer(subset_melt_FLL_PL_22_23$value~(1|ID)+(1|variable)+(1|ID:variable),data=subset_melt_FLL_PL_22_23)
+summary(model2_FLL_22_23_plains)
+ranova(model2_FLL_22_23_plains)
+
+model2_FLL_22_23_griffin=lmer(subset_melt_FLL_GRF_22_23$value~(1|ID)+(1|variable),data=subset_melt_FLL_GRF_22_23)
+summary(model2_FLL_22_23_griffin)
+ranova(model2_FLL_22_23_griffin)
+
+
+model2_FLL_22_23=lmer(subset_melt_FLL_22_23$value~(1|ID)+(1|variable),data=subset_melt_FLL_22_23)
+summary(model2_FLL_22_23)
+ranova(model2_FLL_22_23)
+
+##################### FLL_PL23 ############################
+model2_FLL_PL23=lmer(mydata$FLL_PL23~HD_PL23+PHT_PL23+(1|ID)+(1|Rep), data=mydata) #TESTING Effect of hd and pht as covariate
+hist(residuals(model2_FLL_PL23), col="light Blue") 
+plot(model2_FLL_PL23)              
+summary(model2_FLL_PL23)         
+ranova(model2_FLL_PL23)$Pr[2]
+
+##################### FLL_GRF23 ############################
+model2_FLL_GRF23=lmer(mydata$FLL_GRF23~HD_GRF23+PHT_GRF23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_FLL_GRF23), col="light Blue") 
+plot(model2_FLL_GRF23)              
+summary(model2_FLL_GRF23)         
+ranova(model2_FLL_GRF23)
+       
+##################### FLL_PL22 ############################
+model2_FLL_PL22=lmer(mydata$FLL_PL22~HD_PL22+PHT_PL22+(1|ID)+(1|Rep), data=mydata)
+hist(residuals(model2_FLL_PL22), col="light Blue") 
+plot(model2_FLL_PL22)              
+summary(model2_FLL_PL22)         
+ranova(model2_FLL_PL22)$Pr[2]      #BOTH GENOTYPE AND REP non significant  
+
+
+##################### FLL_GRF22 ############################
+model2_FLL_GRF22=lmer(mydata$FLL_GRF22~HD_GRF22+PHT_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_FLL_GRF22), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_FLL_GRF22)              
+summary(model2_FLL_GRF22)         
+ranova(model2_FLL_GRF22)$Pr[2]        
+
+##################### FLL_PL21 ############################
+
+model2_FLL_PL21=lmer(mydata$FLL_PL21~HD_PL21+PHT_PL21+(1|ID)+(1|Rep), data=mydata)
+plot(mydata$FLL_PL21)
+hist(residuals(model2_FLL_PL21), col="light Blue") 
+plot(model2_FLL_PL21)              
+summary(model2_FLL_PL21)         
+ranova(model2_FLL_PL21)$Pr[2]
+
+##################### FLL_GRF21 ############################
+model2_FLL_GRF21=lmer(mydata$FLL_GRF21~HD_GRF21+PHT_GRF21+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_FLL_GRF21), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_FLL_GRF21)              
+summary(model2_FLL_GRF21)         
+ranova(model2_FLL_GRF21)$Pr[2]
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_FLL_PL22)
+VarCorr(model2_FLL_GRF22)
+VarCorr(model2_FLL_PL21)
+
+```
+
+##   BLUP estimation
+```{r}
+## calculate BLUP FOR for combined grf 2022 and 2023 data and also same for plains
+
+###################### FLL PL 22 AND 23 ###################
+fixef(model2_FLL_22_23_plains)
+ranef(model2_FLL_22_23_plains)$ID
+BLUP_normal_FLL_22_23_plains= fixef(model2_FLL_22_23_plains)+ranef(model2_FLL_22_23_plains)$ID
+tail(BLUP_normal_FLL_22_23_plains)
+write.csv(BLUP_normal_FLL_22_23_plains, file="BLUP_FLL_22_23_plains.csv") 
+hist(BLUP_normal_FLL_22_23_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLL grf 22 AND 23 ###################
+fixef(model2_FLL_22_23_griffin)
+ranef(model2_FLL_22_23_griffin)$ID
+BLUP_normal_FLL_22_23_griffin= fixef(model2_FLL_22_23_griffin)+ranef(model2_FLL_22_23_griffin)$ID
+tail(BLUP_normal_FLL_22_23_griffin)
+write.csv(BLUP_normal_FLL_22_23_griffin, file="BLUP_FLL_22_23_griffin.csv") 
+hist(BLUP_normal_FLL_22_23_griffin$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLL 22 AND 23 (grf and plains) ###################
+fixef(model2_FLL_22_23)
+ranef(model2_FLL_22_23)$ID
+BLUP_normal_FLL_22_23= fixef(model2_FLL_22_23)+ranef(model2_FLL_22_23)$ID
+tail(BLUP_normal_FLL_22_23)
+write.csv(BLUP_normal_FLL_22_23, file="BLUP_FLL_22_23.csv") 
+hist(BLUP_normal_FLL_22_23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLL for 6 environments ###################
+fixef(model2_FLL)
+ranef(model2_FLL)$ID
+BLUP_normal_FLL= fixef(model2_FLL)+ranef(model2_FLL)$ID
+tail(BLUP_normal_FLL)
+write.csv(BLUP_normal_FLL, file="BLUP_FLL.csv") 
+hist(BLUP_normal_FLL$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLL for PLAINS 3 ENV ###################
+fixef(model2_FLL_plains)
+ranef(model2_FLL_plains)$ID
+BLUP_normal_FLL_plains= fixef(model2_FLL_plains)+ranef(model2_FLL_plains)$ID
+tail(BLUP_normal_FLL_plains)
+write.csv(BLUP_normal_FLL_plains, file="BLUP_FLL_plains.csv") 
+hist(BLUP_normal_FLL_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLL for griffin 3 ENV ###################
+fixef(model2_FLL_grf)
+ranef(model2_FLL_grf)$ID
+BLUP_normal_FLL_grf= fixef(model2_FLL_grf)+ranef(model2_FLL_grf)$ID
+tail(BLUP_normal_FLL_grf)
+write.csv(BLUP_normal_FLL_grf, file="BLUP_FLL_grf.csv") 
+hist(BLUP_normal_FLL_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### FLL_PL23 ############################
+fixef(model2_FLL_PL23)
+ranef(model2_FLL_PL23)$ID
+BLUP_normal_FLL_PL23= fixef(model2_FLL_PL23)[1]+ranef(model2_FLL_PL23)$ID
+tail(BLUP_normal_FLL_PL23)
+write.csv(BLUP_normal_FLL_PL23, file="BLUP_FLL_PL23.csv") 
+hist(BLUP_normal_FLL_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_FLL_PL23)$ID, file="BLUP_FLL_PL23.csv") 
+##################### FLL_GRF23 ############################
+fixef(model2_FLL_GRF23)
+ranef(model2_FLL_GRF23)$ID
+BLUP_normal_FLL_GRF23= fixef(model2_FLL_GRF23)+ranef(model2_FLL_GRF23)$ID
+tail(BLUP_normal_FLL_GRF23)
+write.csv(BLUP_normal_FLL_GRF23, file="BLUP_FLL_GRF23.csv") 
+hist(BLUP_normal_FLL_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_FLL_GRF23)$ID, file="BLUP_FLL_GRF23.csv") 
+##################### FLL_PL22 ############################
+fixef(model2_FLL_PL22)
+ranef(model2_FLL_PL22)$ID
+BLUP_normal_FLL_PL22= fixef(model2_FLL_PL22)+ranef(model2_FLL_PL22)$ID
+tail(BLUP_normal_FLL_PL22)
+write.csv(BLUP_normal_FLL_PL22, file="BLUP_FLL_PL22.csv") 
+hist(BLUP_normal_FLL_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_FLL_PL22)$ID, file="BLUP_FLL_PL22.csv") 
+##################### FLL_GRF 22 ############################
+fixef(model2_FLL_GRF22)
+ranef(model2_FLL_GRF22)$ID
+BLUP_normal_FLL_GRF22= fixef(model2_FLL_GRF22)+ranef(model2_FLL_GRF22)$ID
+tail(BLUP_normal_FLL_GRF22)
+write.csv(BLUP_normal_FLL_GRF22, file="BLUP_FLL_GRF22.csv") 
+hist(BLUP_normal_FLL_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_FLL_GRF22)$ID, file="BLUP_FLL_GRF22.csv") #FOR Covariance effects
+##################### FLL_PL21 ############################
+fixef(model2_FLL_PL21)
+ranef(model2_FLL_PL21)$ID
+BLUP_normal_FLL_PL21= fixef(model2_FLL_PL21)+ranef(model2_FLL_PL21)$ID
+tail(BLUP_normal_FLL_PL21)
+write.csv(BLUP_normal_FLL_PL21, file="BLUP_FLL_PL21.csv") 
+hist(BLUP_normal_FLL_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+
+write.csv(ranef(model2_FLL_PL21)$ID, file="BLUP_FLL_PL21.csv") #FOR Covariance effects
+##################### FLL_GRF21 ############################
+fixef(model2_FLL_GRF21)
+ranef(model2_FLL_GRF21)$ID
+BLUP_normal_FLL_GRF21= fixef(model2_FLL_GRF21)+ranef(model2_FLL_GRF21)$ID
+tail(BLUP_normal_FLL_GRF21)
+write.csv(BLUP_normal_FLL_GRF21, file="BLUP_FLL_GRF21.csv") 
+hist(BLUP_normal_FLL_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_FLL_GRF21)$ID, file="BLUP_FLL_GRF21.csv") #FOR Covariance effects
+```
+
+
+
+
+# 6. Flag leaf width
+##   Subsetting data
+```{r}
+#Subsetting flag leaf width data
+FLW_data <- mydata[, c("Cultivar","ID","Rep", "FLW_PL23", "FLW_GRF23","FLW_PL22", "FLW_GRF22", "FLW_PL21","FLW_GRF21")]
+head(FLW_data)
+str(FLW_data)
+colSums(is.na(FLW_data))
+FLW_melt_data <- reshape2::melt(FLW_data, varnames = c("Cultivar", "Rep"))
+FLW_data_griffin <-FLW_data[, c("Cultivar","ID","Rep", "FLW_GRF23", "FLW_GRF22", "FLW_GRF21" )]
+FLW_data_plains=FLW_data[, c("Cultivar","ID","Rep", "FLW_PL23", "FLW_PL22", "FLW_PL21" )]
+FLW_melt_plains <- reshape2::melt(FLW_data_plains, varnames = c("Cultivar", "Rep"))
+FLW_melt_griffin <- reshape2::melt(FLW_data_griffin, varnames = c("Cultivar", "Rep"))
+
+```
+
+##   Plotting
+###    Simple plot
+```{r}
+plot(FLW_data$FLW_PL23, col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for PL23 ")
+plot(FLW_data$FLW_GRF23, col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for PL23 ")
+#There seems to be a data with 0 value in GRF23. Need to make it NA. Done in excel 
+
+plot(FLW_data$FLW_PL22, col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for PL22 ")
+plot(FLW_data$FLW_GRF22,col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for GRF22")
+plot(FLW_data$FLW_PL21,col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for PL21")
+plot(FLW_data$FLW_GRF21,col=FLW_data$Rep,xlab = "Lines", ylab = "Flag leaf width (cm)  for GRF21")
+#FLW_PL22 seem to have three outliers that are close to 4.0 value
+
+```
+
+###    Box plot
+```{r}
+
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(FLW_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(value))) + #Heading date by environment by repliate
+#geom_boxplot(color = "black", outlier.color = "black") +
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf width by Environment",
+       x = "Environment", y = "FLag leaf width in cm",
+       fill = "Environment") +
+  ylim(0, 3) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+
+#for paper
+```{r}
+FLW_graph_data=FLW_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(FLW_graph_data)=new_column_names
+str(FLW_graph_data)
+
+
+FLW_graph_melt=reshape2::melt(FLW_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(FLW_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "FLW (cm)",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face="bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### violin plot
+```{r}
+#   Create violin plot by environment only
+ggplot(FLW_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf width by Environment",
+       x = "Environment", y = "Flag leaf width in cm",
+       fill = "Environment") +
+  ylim(0,3) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+##   Data validity
+###    Levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,FLW_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, FLW_melt_data)
+# all of the data dont support equal variance so cannot combine based on environment
+
+leveneTest(value~variable,FLW_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,FLW_melt_griffin,center="mean")$`Pr(>F)`
+
+#griffin and plains data have no equal variance
+fligner.test(value~variable, FLW_melt_griffin)
+fligner.test(value~variable, FLW_melt_plains)
+
+#Overall FLW data has no equal variance at all so we cant combine
+
+####### however when only 2022 and 2023 data of FLW was combined and tested the FLw of PL showed equal variance and griffin and overall 4 envt combined didnt have equal variance. 
+
+
+subset_FLW_PL_22_23= subset(FLW_data[, c(1,2,3,4,6)])
+subset_melt_FLW_PL_22_23 <- reshape2::melt(subset_FLW_PL_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_FLW_PL_22_23 ,center="mean")
+
+subset_FLW_GRF_22_23= subset(FLW_data[, c(1,2,3,5,7)])
+subset_melt_FLW_GRF_22_23 <- reshape2::melt(subset_FLW_GRF_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_FLW_GRF_22_23,center="mean")
+
+subset_FLW_22_23= subset(FLW_data[, c(1,2,3,4,5,6,7)])
+subset_melt_FLW_22_23 <- reshape2::melt(subset_FLW_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_FLW_22_23,center="mean")
+
+```
+
+###    Normality check
+```{r}
+shapiro.test(FLW_data$FLW_PL23)
+shapiro.test(FLW_data$FLW_GRF23)
+shapiro.test(FLW_data$FLW_PL22)
+shapiro.test(FLW_data$FLW_GRF22)
+shapiro.test(FLW_data$FLW_PL21)
+shapiro.test(FLW_data$FLW_GRF21)
+shapiro.test(FLW_melt_data$value)
+
+#FLW PL23 and GRF21 are normal
+```
+
+##   Linear regression
+```{r}
+################### Multiple env for interaction effect  #######################
+model2_FLW=lmer(FLW_melt_data$value~(1|Rep)+(1|ID)+(1|variable)+(1|ID:variable), data=FLW_melt_data) 
+hist(residuals(model2_FLW), col="light Blue") 
+summary(model2_FLW)
+ranova(model2_FLW)[2]
+
+model2_FLW_plains=lmer(FLW_melt_plains$value~(1|Rep)+(1|ID)+(1|variable)+(1|ID:variable),data=FLW_melt_plains)
+summary(model2_FLW_plains)
+ranova(model2_FLW_plains)
+
+model2_FLW_grf=lmer(FLW_melt_griffin$value~(1|ID)+(1|variable)+(1|ID:variable),data=FLW_melt_griffin) #rep singular
+summary(model2_FLW_grf)
+ranova(model2_FLW_grf)
+
+
+### Now lets test for FLW including only 2022 and 2023 data
+
+model2_FLW_22_23_plains=lmer(subset_melt_FLW_PL_22_23$value~(1|ID)+(1|ID:variable),data=subset_melt_FLW_PL_22_23)
+summary(model2_FLW_22_23_plains)
+ranova(model2_FLW_22_23_plains)
+
+model2_FLW_22_23_griffin=lmer(subset_melt_FLW_GRF_22_23$value~(1|ID)+(1|variable)+(1|ID:variable),data=subset_melt_FLW_GRF_22_23)
+summary(model2_FLW_22_23_griffin)
+ranova(model2_FLW_22_23_griffin)
+
+
+model2_FLW_22_23=lmer(subset_melt_FLW_22_23$value~(1|ID)+(1|variable)+(1|ID:variable),data=subset_melt_FLW_22_23)
+summary(model2_FLW_22_23)
+ranova(model2_FLW_22_23)
+
+##################### FLW_PL23 ############################
+model2_FLW_PL23=lmer(mydata$FLW_PL23~HD_PL23+PHT_PL23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_FLW_PL23), col="light Blue") 
+plot(model2_FLW_PL23)              
+summary(model2_FLW_PL23)         
+ranova(model2_FLW_PL23)$Pr[2]
+
+##################### FLW_GRF23 ############################
+model2_FLW_GRF23=lmer(mydata$FLW_GRF23~HD_GRF23+PHT_GRF23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_FLW_GRF23), col="light Blue") 
+plot(model2_FLW_GRF23)              
+summary(model2_FLW_GRF23)         
+ranova(model2_FLW_GRF23)$Pr[2]
+       
+##################### FLW_PL22 ############################
+model2_FLW_PL22=lmer(mydata$FLW_PL22~HD_PL22+PHT_PL22+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_FLW_PL22), col="light Blue") 
+plot(model2_FLW_PL22)              
+summary(model2_FLW_PL22)         
+ranova(model2_FLW_PL22)$Pr[2]      
+
+
+##################### FLW_GRF22 ############################
+model2_FLW_GRF22=lmer(mydata$FLW_GRF22~HD_GRF22+PHT_GRF22+(1|ID)+(1|Rep), data=mydata)  #rep is singular
+hist(residuals(model2_FLW_GRF22), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_FLW_GRF22)              
+summary(model2_FLW_GRF22)         
+ranova(model2_FLW_GRF22)$Pr[2]         
+
+##################### FLW_PL21 ############################
+
+model2_FLW_PL21=lmer(mydata$FLW_PL21~HD_PL21+PHT_PL21+(1|ID)+(1|Rep), data=mydata)
+plot(mydata$FLW_PL21)
+hist(residuals(model2_FLW_PL21), col="light Blue") 
+plot(model2_FLW_PL21)              
+summary(model2_FLW_PL21)         
+ranova(model2_FLW_PL21)$Pr[2]
+
+##################### FLW_GRF21 ############################
+model2_FLW_GRF21=lmer(mydata$FLW_GRF21~HD_GRF21+PHT_GRF21+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_FLW_GRF21), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_FLW_GRF21)              
+summary(model2_FLW_GRF21)         
+ranova(model2_FLW_GRF21)$Pr[2]
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_FLW_PL22)
+VarCorr(model2_FLW_GRF22)
+VarCorr(model2_FLW_PL21)
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_FLW_PL22)
+VarCorr(model2_FLW_GRF22)
+VarCorr(model2_FLW_PL21)
+
+```
+
+##   BLUP estimation
+```{r}
+## calculate BLUP FOR for combined grf 2022 and 2023 data and also same for plains
+
+###################### FLW PL 22 AND 23 ###################
+fixef(model2_FLW_22_23_plains)
+ranef(model2_FLW_22_23_plains)$ID
+BLUP_normal_FLW_22_23_plains= fixef(model2_FLW_22_23_plains)+ranef(model2_FLW_22_23_plains)$ID
+tail(BLUP_normal_FLW_22_23_plains)
+write.csv(BLUP_normal_FLW_22_23_plains, file="BLUP_FLW_22_23_plains.csv") 
+hist(BLUP_normal_FLW_22_23_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLW grf 22 AND 23 ###################
+fixef(model2_FLW_22_23_griffin)
+ranef(model2_FLW_22_23_griffin)$ID
+BLUP_normal_FLW_22_23_griffin= fixef(model2_FLW_22_23_griffin)+ranef(model2_FLW_22_23_griffin)$ID
+tail(BLUP_normal_FLW_22_23_griffin)
+write.csv(BLUP_normal_FLW_22_23_griffin, file="BLUP_FLW_22_23_griffin.csv") 
+hist(BLUP_normal_FLW_22_23_griffin$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLW 22 AND 23 (grf and plains) ###################
+fixef(model2_FLW_22_23)
+ranef(model2_FLW_22_23)$ID
+BLUP_normal_FLW_22_23= fixef(model2_FLW_22_23)+ranef(model2_FLW_22_23)$ID
+tail(BLUP_normal_FLW_22_23)
+write.csv(BLUP_normal_FLW_22_23, file="BLUP_FLW_22_23.csv") 
+hist(BLUP_normal_FLW_22_23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLW for 6 environments ###################
+fixef(model2_FLW)
+ranef(model2_FLW)$ID
+BLUP_normal_FLW= fixef(model2_FLW)+ranef(model2_FLW)$ID
+tail(BLUP_normal_FLW)
+write.csv(BLUP_normal_FLW, file="BLUP_FLW.csv") 
+hist(BLUP_normal_FLW$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLW for PLAINS 3 ENV ###################
+fixef(model2_FLW_plains)
+ranef(model2_FLW_plains)$ID
+BLUP_normal_FLW_plains= fixef(model2_FLW_plains)+ranef(model2_FLW_plains)$ID
+tail(BLUP_normal_FLW_plains)
+write.csv(BLUP_normal_FLW_plains, file="BLUP_FLW_plains.csv") 
+hist(BLUP_normal_FLW_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### FLW for griffin 3 ENV ###################
+fixef(model2_FLW_grf)
+ranef(model2_FLW_grf)$ID
+BLUP_normal_FLW_grf= fixef(model2_FLW_grf)+ranef(model2_FLW_grf)$ID
+tail(BLUP_normal_FLW_grf)
+write.csv(BLUP_normal_FLW_grf, file="BLUP_FLW_grf.csv") 
+hist(BLUP_normal_FLW_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### FLW_PL23 ############################
+fixef(model2_FLW_PL23)
+ranef(model2_FLW_PL23)$ID
+BLUP_normal_FLW_PL23= fixef(model2_FLW_PL23)+ranef(model2_FLW_PL23)$ID
+tail(BLUP_normal_FLW_PL23)
+write.csv(BLUP_normal_FLW_PL23, file="BLUP_FLW_PL23.csv") 
+hist(BLUP_normal_FLW_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_PL23)$ID, file="BLUP_FLW_PL23.csv") #fOR covariance test
+##################### FLW_GRF23 ############################
+fixef(model2_FLW_GRF23)
+ranef(model2_FLW_GRF23)$ID
+BLUP_normal_FLW_GRF23= fixef(model2_FLW_GRF23)+ranef(model2_FLW_GRF23)$ID
+tail(BLUP_normal_FLW_GRF23)
+write.csv(BLUP_normal_FLW_GRF23, file="BLUP_FLW_GRF23.csv") 
+hist(BLUP_normal_FLW_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_GRF23)$ID, file="BLUP_FLW_GRF23.csv") #fOR covariance test
+##################### FLW_PL22 ############################
+fixef(model2_FLW_PL22)
+ranef(model2_FLW_PL22)$ID
+BLUP_normal_FLW_PL22= fixef(model2_FLW_PL22)+ranef(model2_FLW_PL22)$ID
+tail(BLUP_normal_FLW_PL22)
+write.csv(BLUP_normal_FLW_PL22, file="BLUP_FLW_PL22.csv") 
+hist(BLUP_normal_FLW_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_PL22)$ID, file="BLUP_FLW_PL22.csv") #fOR covariance test
+##################### FLW_GRF 22 ############################
+fixef(model2_FLW_GRF22)
+ranef(model2_FLW_GRF22)$ID
+BLUP_normal_FLW_GRF22= fixef(model2_FLW_GRF22)+ranef(model2_FLW_GRF22)$ID
+tail(BLUP_normal_FLW_GRF22)
+write.csv(BLUP_normal_FLW_GRF22, file="BLUP_FLW_GRF22.csv") 
+hist(BLUP_normal_FLW_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_GRF22)$ID, file="BLUP_FLW_GRF22.csv") #fOR covariance test
+##################### FLW_PL21 ############################
+fixef(model2_FLW_PL21)
+ranef(model2_FLW_PL21)$ID
+BLUP_normal_FLW_PL21= fixef(model2_FLW_PL21)+ranef(model2_FLW_PL21)$ID
+tail(BLUP_normal_FLW_PL21)
+write.csv(BLUP_normal_FLW_PL21, file="BLUP_FLW_PL21.csv") 
+hist(BLUP_normal_FLW_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_PL21)$ID, file="BLUP_FLW_PL21.csv") #fOR covariance test
+##################### FLW_GRF21 ############################
+fixef(model2_FLW_GRF21)
+ranef(model2_FLW_GRF21)$ID
+BLUP_normal_FLW_GRF21= fixef(model2_FLW_GRF21)+ranef(model2_FLW_GRF21)$ID
+tail(BLUP_normal_FLW_GRF21)
+write.csv(BLUP_normal_FLW_GRF21, file="BLUP_FLW_GRF21.csv") 
+hist(BLUP_normal_FLW_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_FLW_GRF21)$ID, file="BLUP_FLW_GRF21.csv") #fOR covariance test
+```
+
+
+# 6. Length width ratio
+##   Subsetting data
+```{r}
+#Subsetting flag leaf width data
+LWR_data <- mydata[, c("Cultivar","ID","Rep", "LWR_PL23", "LWR_GRF23","LWR_PL22", "LWR_GRF22", "LWR_PL21","LWR_GRF21")]
+head(LWR_data)
+str(LWR_data)
+is.na(LWR_data)
+LWR_melt_data <- reshape2::melt(LWR_data, varnames = c("Cultivar", "Rep"))
+LWR_data_griffin <-LWR_data[, c("Cultivar","ID","Rep", "LWR_GRF23", "LWR_GRF22", "LWR_GRF21" )]
+LWR_data_plains=LWR_data[, c("Cultivar","ID","Rep", "LWR_PL23", "LWR_PL22", "LWR_PL21" )]
+LWR_melt_plains <- reshape2::melt(LWR_data_plains, varnames = c("Cultivar", "Rep"))
+LWR_melt_griffin <- reshape2::melt(LWR_data_griffin, varnames = c("Cultivar", "Rep"))
+
+```
+
+##   Plotting
+###    Simple plot
+```{r}
+plot(LWR_data$LWR_PL23, col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for PL23 ")
+plot(LWR_data$LWR_GRF23, col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for GRF23 ")
+
+plot(LWR_data$LWR_PL22, col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for PL22 ")
+#LWR pl22 has one outlier
+
+plot(LWR_data$LWR_GRF22,col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for GRF22")
+
+plot(LWR_data$LWR_PL21,col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for PL21")
+#has one clear outlier LA02015E201 for which the flw seems to be miswritten from 1.9 to 0.9. so it was corrected
+plot(LWR_data$LWR_GRF21,col=LWR_data$Rep,xlab = "Lines", ylab = "Leaf width ratio  for GRF21")
+#LWR_PL22 seem to have three outliers that are close to 4.0 value
+
+
+```
+
+###    Box plot
+```{r}
+
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(LWR_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(value))) + #Heading date by environment by repliate
+#geom_boxplot(color = "black", outlier.color = "black") +
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf length-width ratio by Environment",
+       x = "Environment", y = "FLag leaf length-width ratio",
+       fill = "Environment") +
+  ylim(5, 25) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+```{r}
+LWR_graph_data=LWR_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(LWR_graph_data)=new_column_names
+str(FLW_graph_data)
+
+LWR_graph_melt=reshape2::melt(LWR_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(LWR_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "LWR",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2,color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face="bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### violin plot
+```{r}
+#   Create violin plot by environment only
+ggplot(LWR_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Flag leaf length-width ratio by Environment",
+       x = "Environment", y = "Flag leaf length-width ratio",
+       fill = "Environment") +
+  ylim(5,25) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+##   Data validity
+###    Levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,LWR_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, LWR_melt_data)
+# all of the data dont support equal variance so cannot combine based on environment
+
+leveneTest(value~variable,LWR_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,LWR_melt_griffin,center="mean")$`Pr(>F)`
+
+fligner.test(value~variable, LW_melt_griffin)
+fligner.test(value~variable, LW_melt_plains)
+
+# only griffin data has equal variance
+
+####### however when only 2022 and 2023 data of LW was combined and tested the LW of both the location was found of equal variance but when all 4 environments were taken,there was no equal variance
+
+subset_LW_PL_22_23= subset(LW_data[, c(1,2,3,4,6)])
+subset_melt_LW_PL_22_23 <- reshape2::melt(subset_LW_PL_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LW_PL_22_23 ,center="mean")
+
+subset_LW_GRF_22_23= subset(LW_data[, c(1,2,3,5,7)])
+subset_melt_LW_GRF_22_23 <- reshape2::melt(subset_LW_GRF_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LW_GRF_22_23,center="mean")
+
+subset_LW_22_23= subset(LW_data[, c(1,2,3,4,5,6,7)])
+subset_melt_LW_22_23 <- reshape2::melt(subset_LW_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LW_22_23,center="mean")
+
+```
+
+###    Normality check
+```{r}
+shapiro.test(LW_data$LW_PL23)
+shapiro.test(LW_data$LW_GRF23)
+shapiro.test(LW_data$LW_PL22)
+shapiro.test(LW_data$LW_GRF22)
+shapiro.test(LW_data$LW_PL21)
+shapiro.test(LW_data$LW_GRF21)
+shapiro.test(LW_melt_data$value)
+#grf21 is only normal. 
+```
+
+##   Linear regression
+```{r}
+################### Multiple env for interaction effect  #######################
+model2_LW=lmer(LWR_melt_data$value~(1|ID)+(1|variable)+(1|ID:variable), data=LWR_melt_data) #REP SINGULAR
+hist(residuals(model2_LW), col="light Blue") 
+summary(model2_LW)
+ranova(model2_LW)
+
+model2_LW_plains=lmer(LWR_melt_plains$value~(1|ID)+(1|variable)+(1|ID:variable),data=LWR_melt_plains) #REP SINGULAR
+summary(model2_LW_plains)
+ranova(model2_LW_plains)
+
+model2_LW_grf=lmer(LWR_melt_griffin$value~(1|ID)+(1|variable),data=LWR_melt_griffin) #GXE SINGULAR
+summary(model2_LW_grf)
+ranova(model2_LW_grf)
+
+### Now lets test for LWR including only 2022 and 2023 data
+
+model2_LW_22_23_plains=lmer(subset_melt_LW_PL_22_23$value~(1|ID)+(1|variable)+(1|ID:variable),data=subset_melt_LW_PL_22_23)
+summary(model2_LW_22_23_plains)
+ranova(model2_LW_22_23_plains)
+
+model2_LW_22_23_griffin=lmer(subset_melt_LW_GRF_22_23$value~(1|ID)+(1|variable),data=subset_melt_LW_GRF_22_23)
+summary(model2_LW_22_23_griffin)
+ranova(model2_LW_22_23_griffin)
+
+model2_LW_22_23=lmer(subset_melt_LW_22_23$value~(1|ID)+(1|variable),data=subset_melt_LW_22_23)
+summary(model2_LW_22_23)
+ranova(model2_LW_22_23)
+
+##################### LWR_PL23 ############################
+model2_LW_PL23=lmer(mydata$LWR_PL23~HD_PL23+PHT_PL23+(1|ID)+(1|Rep), data=mydata) #rep. singular
+hist(residuals(model2_LW_PL23), col="light Blue") 
+plot(model2_LW_PL23)              
+summary(model2_LW_PL23)         
+ranova(model2_LW_PL23)$Pr[2]
+
+##################### LWR_GRF23 ############################
+model2_LW_GRF23=lmer(mydata$LWR_GRF23~HD_GRF23+PHT_GRF23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LW_GRF23), col="light Blue") 
+plot(model2_LW_GRF23)              
+summary(model2_LW_GRF23)         
+ranova(model2_LW_GRF23)$Pr[2]
+       
+##################### LWR_PL22 ############################
+model2_LW_PL22=lmer(mydata$LWR_PL22~HD_PL22+PHT_PL22+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LW_PL22), col="light Blue") 
+plot(model2_LW_PL22)              
+summary(model2_LW_PL22)         
+ranova(model2_LW_PL22)$Pr[2]       #BOTH GENOTYPE AND REP non significant  
+
+
+##################### LWR_GRF22 ############################
+model2_LW_GRF22=lmer(mydata$LWR_GRF22~HD_GRF22+PHT_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_LW_GRF22), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_LW_GRF22)              
+summary(model2_LW_GRF22)         
+ranova(model2_LW_GRF22)$Pr[2]          
+
+##################### LWR_PL21 ############################
+
+model2_LW_PL21=lmer(mydata$LWR_PL21~HD_PL21+PHT_PL21+(1|ID)+(1|Rep), data=mydata) #REP SINGULAR
+plot(mydata$LW_PL21)
+hist(residuals(model2_LW_PL21), col="light Blue") 
+plot(model2_LW_PL21)              
+summary(model2_LW_PL21)         
+ranova(model2_LW_PL21)$Pr[2]
+
+##################### LW_GRF21 ############################
+model2_LW_GRF21=lmer(mydata$LWR_GRF21~HD_GRF21+PHT_GRF21+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_LW_GRF21), col="light Blue") #residuals histogram check looks normally distribution for GRF_PL22
+plot(model2_LW_GRF21)              
+summary(model2_LW_GRF21)         
+ranova(model2_LW_GRF21)$Pr[2]  
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_LW_PL22)
+VarCorr(model2_LW_GRF22)
+VarCorr(model2_LW_PL21)
+
+```
+
+##   BLUP estimation
+```{r}
+## calculate BLUP FOR for combined grf 2022 and 2023 data and also same for plains
+
+###################### LW PL 22 AND 23 ###################
+fixef(model2_LW_22_23_plains)
+ranef(model2_LW_22_23_plains)$ID
+BLUP_normal_LW_22_23_plains= fixef(model2_LW_22_23_plains)+ranef(model2_LW_22_23_plains)$ID
+tail(BLUP_normal_LW_22_23_plains)
+write.csv(BLUP_normal_LW_22_23_plains, file="BLUP_LW_22_23_plains.csv") 
+hist(BLUP_normal_LW_22_23_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LW grf 22 AND 23 ###################
+fixef(model2_LW_22_23_griffin)
+ranef(model2_LW_22_23_griffin)$ID
+BLUP_normal_LW_22_23_griffin= fixef(model2_LW_22_23_griffin)+ranef(model2_LW_22_23_griffin)$ID
+tail(BLUP_normal_LW_22_23_griffin)
+write.csv(BLUP_normal_LW_22_23_griffin, file="BLUP_LW_22_23_griffin.csv") 
+hist(BLUP_normal_LW_22_23_griffin$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LW 22 AND 23 (grf and plains combined) ###################
+fixef(model2_LW_22_23)
+ranef(model2_LW_22_23)$ID
+BLUP_normal_LW_22_23= fixef(model2_LW_22_23)+ranef(model2_LW_22_23)$ID
+tail(BLUP_normal_LW_22_23)
+write.csv(BLUP_normal_LW_22_23, file="BLUP_LW_22_23.csv") 
+hist(BLUP_normal_LW_22_23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LW for 6 environments ###################
+fixef(model2_LW)
+ranef(model2_LW)$ID
+BLUP_normal_LW= fixef(model2_LW)+ranef(model2_LW)$ID
+tail(BLUP_normal_LW)
+write.csv(BLUP_normal_LW, file="BLUP_LW.csv") 
+hist(BLUP_normal_LW$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LW for PLAINS 3 ENV ###################
+fixef(model2_LW_plains)
+ranef(model2_LW_plains)$ID
+BLUP_normal_LW_plains= fixef(model2_LW_plains)+ranef(model2_LW_plains)$ID
+tail(BLUP_normal_LW_plains)
+write.csv(BLUP_normal_LW_plains, file="BLUP_LW_plains.csv") 
+hist(BLUP_normal_LW_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LW for griffin 3 ENV ###################
+fixef(model2_LW_grf)
+ranef(model2_LW_grf)$ID
+BLUP_normal_LW_grf= fixef(model2_LW_grf)+ranef(model2_LW_grf)$ID
+tail(BLUP_normal_LW_grf)
+write.csv(BLUP_normal_LW_grf, file="BLUP_LW_grf.csv") 
+hist(BLUP_normal_LW_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### LW_PL23 ############################
+fixef(model2_LW_PL23)
+ranef(model2_LW_PL23)$ID
+BLUP_normal_LW_PL23= fixef(model2_LW_PL23)+ranef(model2_LW_PL23)$ID
+tail(BLUP_normal_LW_PL23)
+write.csv(BLUP_normal_LW_PL23, file="BLUP_LW_PL23.csv") 
+hist(BLUP_normal_LW_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_PL23)$ID, file="BLUP_LWR_PL23.csv") #FOR COVARIANCE EFFECT
+##################### LW_GRF23 ############################
+fixef(model2_LW_GRF23)
+ranef(model2_LW_GRF23)$ID
+BLUP_normal_LW_GRF23= fixef(model2_LW_GRF23)+ranef(model2_LW_GRF23)$ID
+tail(BLUP_normal_LW_GRF23)
+write.csv(BLUP_normal_LW_GRF23, file="BLUP_LW_GRF23.csv") 
+hist(BLUP_normal_LW_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_GRF23)$ID, file="BLUP_LWR_GRF23.csv") #FOR COVARIANCE EFFECT
+##################### LW_PL22 ############################
+fixef(model2_LW_PL22)
+ranef(model2_LW_PL22)$ID
+BLUP_normal_LW_PL22= fixef(model2_LW_PL22)+ranef(model2_LW_PL22)$ID
+tail(BLUP_normal_LW_PL22)
+write.csv(BLUP_normal_LW_PL22, file="BLUP_LW_PL22.csv") 
+hist(BLUP_normal_LW_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_PL22)$ID, file="BLUP_LWR_PL22.csv") #FOR COVARIANCE EFFECT
+
+##################### LW_GRF 22 ############################
+fixef(model2_LW_GRF22)
+ranef(model2_LW_GRF22)$ID
+BLUP_normal_LW_GRF22= fixef(model2_LW_GRF22)+ranef(model2_LW_GRF22)$ID
+tail(BLUP_normal_LW_GRF22)
+write.csv(BLUP_normal_LW_GRF22, file="BLUP_LW_GRF22.csv") 
+hist(BLUP_normal_LW_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_GRF22)$ID, file="BLUP_LWR_GRF22.csv") #FOR COVARIANCE EFFECT
+##################### LW_PL21 ############################
+fixef(model2_LW_PL21)
+ranef(model2_LW_PL21)$ID
+BLUP_normal_LW_PL21= fixef(model2_LW_PL21)+ranef(model2_LW_PL21)$ID
+tail(BLUP_normal_LW_PL21)
+write.csv(BLUP_normal_LW_PL21, file="BLUP_LW_PL21.csv") 
+hist(BLUP_normal_LW_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_PL21)$ID, file="BLUP_LWR_PL21.csv") #FOR COVARIANCE EFFECT
+##################### LW_GRF21 ############################
+fixef(model2_LW_GRF21)
+ranef(model2_LW_GRF21)$ID
+BLUP_normal_LW_GRF21= fixef(model2_LW_GRF21)+ranef(model2_LW_GRF21)$ID
+tail(BLUP_normal_LW_GRF21)
+write.csv(BLUP_normal_LW_GRF21, file="BLUP_LW_GRF21.csv") 
+hist(BLUP_normal_LW_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LW_GRF21)$ID, file="BLUP_LWR_GRF21.csv") #FOR COVARIANCE EFFECT
+```
+
+
+
+# 6. Leaf area
+##   Subsetting data
+```{r}
+#Subsetting flag leaf width data
+LA_data <- mydata[, c("Cultivar","ID","Rep", "LA_PL23", "LA_GRF23","LA_PL22", "LA_GRF22", "LA_PL21","LA_GRF21")]
+head(LA_data)
+str(LA_data)
+is.na(LA_data)
+LA_melt_data <- reshape2::melt(LA_data, varnames = c("Cultivar", "Rep"))
+LA_data_griffin <-LA_data[, c("Cultivar","ID","Rep", "LA_GRF23", "LA_GRF22", "LA_GRF21" )]
+LA_data_plains=LA_data[, c("Cultivar","ID","Rep", "LA_PL23", "LA_PL22", "LA_PL21" )]
+LA_melt_plains <- reshape2::melt(LA_data_plains, varnames = c("Cultivar", "Rep"))
+LA_melt_griffin <- reshape2::melt(LA_data_griffin, varnames = c("Cultivar", "Rep"))
+
+```
+
+##   Plotting
+###    Simple plot
+```{r}
+plot(LA_data$LA_PL23, col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for PL23 ")
+plot(LA_data$LA_GRF23, col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for GRF23 ")
+#There seems to be a data with 0 value in GRF23. Need to make it NA. 
+plot(LA_data$LA_PL22, col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for PL22 ")
+plot(LA_data$LA_GRF22,col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for GRF22")
+plot(LA_data$LA_PL21,col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for PL21")
+plot(LA_data$LA_GRF21,col=LA_data$Rep,xlab = "Lines", ylab = "Leaf area  for GRF21")
+#grf21 outlier <20
+
+```
+
+
+###    Box plot
+```{r}
+
+LA_filtered_data <- LA_melt_data[LA_melt_data$value<50,]
+LA_filtered_data <- LA_filtered_data[complete.cases(LA_filtered_data), ]
+
+LA_outlierfilter= LA_data[LA_data$LA_GRF21>20,]
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(LA_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(value))) + #Heading date by environment by repliate
+#geom_boxplot(color = "black", outlier.color = "black") +
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Leaf area by Environment",
+       x = "Environment", y = "Leaf area in cm2",
+       fill = "Environment") +
+  ylim(0, 60) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+
+```
+
+
+```{r}
+LA_graph_data=LA_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(LA_graph_data)=new_column_names
+str(LA_graph_data)
+
+LA_graph_melt=reshape2::melt(LA_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(LA_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "",  y = "LA",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15, color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 18, face = "bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+```{r}
+
+
+#   Create violin plot by environment only
+ggplot(LA_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Leaf area by Environment",
+       x = "Environment", y = "Leaf area in cm2",
+       fill = "Environment") +
+  ylim(0,60) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+##   Data validity
+###    Levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,LA_melt_data,center="mean")$`Pr(>F)`
+fligner.test(value~variable, LA_filtered_data)
+# all of the data dont support equal variance so cannot combine based on environment
+
+leveneTest(value~variable,LA_melt_plains,center="mean")$`Pr(>F)`
+leveneTest(value~variable,LA_melt_griffin,center="mean")$`Pr(>F)`
+
+#griffin and plains data have no equal variance
+fligner.test(value~variable, LA_melt_griffin)
+fligner.test(value~variable, LA_melt_plains)
+
+#Overall LA data has no equal variance at all so we cant combine
+
+####### however when only 2022 and 2023 data of LA was combined and tested the FLw of PL showed equal variance and griffin and overall 4 envt combined didnt have equal variance. 
+
+
+subset_LA_PL_22_23= subset(LA_data[, c(1,2,3,4,6)])
+subset_melt_LA_PL_22_23 <- reshape2::melt(subset_LA_PL_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LA_PL_22_23 ,center="mean")
+
+subset_LA_GRF_22_23= subset(LA_data[, c(1,2,3,5,7)])
+subset_melt_LA_GRF_22_23 <- reshape2::melt(subset_LA_GRF_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LA_GRF_22_23,center="mean")
+
+subset_LA_22_23= subset(LA_data[, c(1,2,3,4,5,6,7)])
+subset_melt_LA_22_23 <- reshape2::melt(subset_LA_22_23, varnames = c("Cultivar", "Rep"))
+leveneTest(value~variable,subset_melt_LA_22_23,center="mean")
+
+```
+
+###    Normality check
+```{r}
+shapiro.test(LA_data$LA_PL23)
+shapiro.test(LA_data$LA_GRF23)
+shapiro.test(LA_data$LA_PL22)
+shapiro.test(LA_data$LA_GRF22)
+shapiro.test(LA_data$LA_PL21)
+shapiro.test(LA_data$LA_GRF21)
+shapiro.test(LA_melt_data$value)
+
+#LA PL23 and GRF21 are normal
+```
+
+##   Linear regression
+```{r}
+################### Multiple env for interaction effect  #######################
+model2_LA=lmer(LA_melt_data$value~(1|ID)+(1|variable)+(1|ID:variable), data=LA_melt_data) #rep model fail to converge
+hist(residuals(model2_LA), col="light Blue") 
+summary(model2_LA)
+ranova(model2_LA)
+
+model2_LA_plains=lmer(LA_melt_plains$value~(1|Rep)+(1|ID)+(1|variable)+(1|ID:variable),data=LA_melt_plains)
+summary(model2_LA_plains)
+ranova(model2_LA_plains)
+
+model2_LA_grf=lmer(LA_melt_griffin$value~(1|Rep)+(1|ID)+(1|variable),data=LA_melt_griffin) #gxe singular
+summary(model2_LA_grf)
+ranova(model2_LA_grf)
+
+
+### Now lets test for LA including only 2022 and 2023 data
+
+model2_LA_22_23_plains=lmer(subset_melt_LA_PL_22_23$value~+(1|ID)+(1|variable)+(1|ID:variable),data=subset_melt_LA_PL_22_23)
+summary(model2_LA_22_23_plains)
+ranova(model2_LA_22_23_plains)
+
+model2_LA_22_23_griffin=lmer(subset_melt_LA_GRF_22_23$value~(1|ID)+(1|variable),data=subset_melt_LA_GRF_22_23)
+summary(model2_LA_22_23_griffin)
+ranova(model2_LA_22_23_griffin)
+
+
+model2_LA_22_23=lmer(subset_melt_LA_22_23$value~(1|ID)+(1|variable),data=subset_melt_LA_22_23)
+summary(model2_LA_22_23)
+ranova(model2_LA_22_23)
+
+##################### LA_PL23 ############################
+model2_LA_PL23=lmer(mydata$LA_PL23~HD_PL23+PHT_PL23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LA_PL23), col="light Blue") 
+plot(model2_LA_PL23)              
+summary(model2_LA_PL23)         
+ranova(model2_LA_PL23)$Pr[2]
+
+##################### LA_GRF23 ############################
+model2_LA_GRF23=lmer(mydata$LA_GRF23~HD_GRF23+PHT_GRF23+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LA_GRF23), col="light Blue") 
+plot(model2_LA_GRF23)              
+summary(model2_LA_GRF23)         
+ranova(model2_LA_GRF23)$Pr[2]
+       
+##################### LA_PL22 ############################
+model2_LA_PL22=lmer(mydata$LA_PL22~HD_PL22+PHT_PL22+(1|ID)+(1|Rep), data=mydata) 
+hist(residuals(model2_LA_PL22), col="light Blue") 
+plot(model2_LA_PL22)              
+summary(model2_LA_PL22)         
+ranova(model2_LA_PL22)$Pr[2]   
+
+
+##################### LA_GRF22 ############################
+model2_LA_GRF22=lmer(mydata$LA_GRF22~HD_GRF22+PHT_GRF22+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_LA_GRF22), col="light Blue") 
+plot(model2_LA_GRF22)              
+summary(model2_LA_GRF22)         
+ranova(model2_LA_GRF22)$Pr[2]          
+
+##################### LA_PL21 ############################
+
+model2_LA_PL21=lmer(mydata$LA_PL21~HD_PL21+PHT_PL21+(1|ID)+(1|Rep), data=mydata)
+plot(mydata$LA_PL21)
+hist(residuals(model2_LA_PL21), col="light Blue") 
+plot(model2_LA_PL21)              
+summary(model2_LA_PL21)         
+ranova(model2_LA_PL21)$Pr[2]
+
+##################### LA_GRF21 ############################
+model2_LA_GRF21=lmer(mydata$LA_GRF21~HD_GRF21+PHT_GRF21+(1|ID)+(1|Rep), data=mydata)  
+hist(residuals(model2_LA_GRF21), col="light Blue") 
+plot(model2_LA_GRF21)              
+summary(model2_LA_GRF21)         
+ranova(model2_LA_GRF21)$Pr[2]  #even genotype is not significant
+boxplot(mydata$LA_GRF21)
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_LA_PL22)
+VarCorr(model2_L./W_GRF22)
+VarCorr(model2_LA_PL21)
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_LA_PL22)
+VarCorr(model2_L./W_GRF22)
+VarCorr(model2_LA_PL21)
+
+```
+
+##   BLUP estimation
+```{r}
+## calculate BLUP FOR for combined grf 2022 and 2023 data and also same for plains
+
+###################### LA PL 22 AND 23 ###################
+fixef(model2_LA_22_23_plains)
+ranef(model2_LA_22_23_plains)$ID
+BLUP_normal_LA_22_23_plains= fixef(model2_LA_22_23_plains)+ranef(model2_LA_22_23_plains)$ID
+tail(BLUP_normal_LA_22_23_plains)
+write.csv(BLUP_normal_LA_22_23_plains, file="BLUP_LA_22_23_plains.csv") 
+hist(BLUP_normal_LA_22_23_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LA grf 22 AND 23 ###################
+fixef(model2_LA_22_23_griffin)
+ranef(model2_LA_22_23_griffin)$ID
+BLUP_normal_LA_22_23_griffin= fixef(model2_LA_22_23_griffin)+ranef(model2_LA_22_23_griffin)$ID
+tail(BLUP_normal_LA_22_23_griffin)
+write.csv(BLUP_normal_LA_22_23_griffin, file="BLUP_LA_22_23_griffin.csv") 
+hist(BLUP_normal_LA_22_23_griffin$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LA 22 AND 23 (grf and plains) ###################
+fixef(model2_LA_22_23)
+ranef(model2_LA_22_23)$ID
+BLUP_normal_LA_22_23= fixef(model2_LA_22_23)+ranef(model2_LA_22_23)$ID
+tail(BLUP_normal_LA_22_23)
+write.csv(BLUP_normal_LA_22_23, file="BLUP_LA_22_23.csv") 
+hist(BLUP_normal_LA_22_23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LA for 6 environments ###################
+fixef(model2_LA)
+ranef(model2_LA)$ID
+BLUP_normal_LA= fixef(model2_LA)+ranef(model2_LA)$ID
+tail(BLUP_normal_LA)
+write.csv(BLUP_normal_LA, file="BLUP_LA.csv") 
+hist(BLUP_normal_LA$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LA for PLAINS 3 ENV ###################
+fixef(model2_LA_plains)
+ranef(model2_LA_plains)$ID
+BLUP_normal_LA_plains= fixef(model2_LA_plains)+ranef(model2_LA_plains)$ID
+tail(BLUP_normal_LA_plains)
+write.csv(BLUP_normal_LA_plains, file="BLUP_LA_plains.csv") 
+hist(BLUP_normal_LA_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### LA for griffin 3 ENV ###################
+fixef(model2_LA_grf)
+ranef(model2_LA_grf)$ID
+BLUP_normal_LA_grf= fixef(model2_LA_grf)+ranef(model2_LA_grf)$ID
+tail(BLUP_normal_LA_grf)
+write.csv(BLUP_normal_LA_grf, file="BLUP_LA_grf.csv") 
+hist(BLUP_normal_LA_grf$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### LA_PL23 ############################
+fixef(model2_LA_PL23)
+ranef(model2_LA_PL23)$ID
+BLUP_normal_LA_PL23= fixef(model2_LA_PL23)+ranef(model2_LA_PL23)$ID
+tail(BLUP_normal_LA_PL23)
+write.csv(BLUP_normal_LA_PL23, file="BLUP_LA_PL23.csv") 
+hist(BLUP_normal_LA_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LA_PL23)$ID, file="BLUP_LA_PL23.csv") #for covariance effect
+##################### LA_GRF23 ############################
+fixef(model2_LA_GRF23)
+ranef(model2_LA_GRF23)$ID
+BLUP_normal_LA_GRF23= fixef(model2_LA_GRF23)+ranef(model2_LA_GRF23)$ID
+tail(BLUP_normal_LA_GRF23)
+write.csv(BLUP_normal_LA_GRF23, file="BLUP_LA_GRF23.csv") 
+hist(BLUP_normal_LA_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LA_GRF23)$ID, file="BLUP_LA_GRF23.csv") #for covariance effect
+##################### LA_PL22 ############################
+fixef(model2_LA_PL22)
+ranef(model2_LA_PL22)$ID
+BLUP_normal_LA_PL22= fixef(model2_LA_PL22)+ranef(model2_LA_PL22)$ID
+tail(BLUP_normal_LA_PL22)
+write.csv(BLUP_normal_LA_PL22, file="BLUP_LA_PL22.csv") 
+hist(BLUP_normal_LA_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LA_PL22)$ID, file="BLUP_LA_PL22.csv") #for covariance effect
+##################### LA_GRF 22 ############################
+fixef(model2_LA_GRF22)
+ranef(model2_LA_GRF22)$ID
+BLUP_normal_LA_GRF22= fixef(model2_LA_GRF22)+ranef(model2_LA_GRF22)$ID
+tail(BLUP_normal_LA_GRF22)
+write.csv(BLUP_normal_LA_GRF22, file="BLUP_LA_GRF22.csv") 
+hist(BLUP_normal_LA_GRF22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LA_GRF22)$ID, file="BLUP_LA_GRF22.csv") #for covariance effect
+##################### LA_PL21 ############################
+fixef(model2_LA_PL21)
+ranef(model2_LA_PL21)$ID
+BLUP_normal_LA_PL21= fixef(model2_LA_PL21)+ranef(model2_LA_PL21)$ID
+tail(BLUP_normal_LA_PL21)
+write.csv(BLUP_normal_LA_PL21, file="BLUP_LA_PL21.csv") 
+hist(BLUP_normal_LA_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+write.csv(ranef(model2_LA_PL21)$ID, file="BLUP_LA_PL21.csv") #for covariance effect
+##################### LA_GRF21 ############################
+#fixef(model2_LA_GRF21)
+#ranef(model2_LA_GRF21)$ID
+#BLUP_normal_LA_GRF21= fixef(model2_LA_GRF21)+ranef(model2_LA_GRF21)$ID
+#tail(BLUP_normal_LA_GRF21)
+#write.csv(BLUP_normal_LA_GRF21, file="BLUP_LA_GRF21.csv") 
+#hist(BLUP_normal_LA_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+```
+
+# 7. Greenness
+##   Subsetting data
+```{r}
+#Subsetting greenness data
+greenness_data <- mydata[, c("Cultivar","ID","Rep", "GRN_PL22", "GRN_GRF22", "GRN_PL21")]
+head(greenness_data)
+```
+##   Plotting
+###    Simple plot
+```{r}
+plot(greenness_data$GRN_PL22, col=greenness_data$Rep,xlab = "Lines", ylab = "Greenness  for PL22 ")
+plot(greenness_data$GRN_GRF22,col=greenness_data$Rep,xlab = "Lines", ylab = "Greenness  for GRF22")
+plot(greenness_data$GRN_PL21,col=greenness_data$Rep,xlab = "Lines", ylab = "Greenness  for PL21")
+
+#The greenness notes for GRF 2021 is not useful so not plotted
+```
+
+##   Data validity
+### Levene's test
+```{r}
+library(car)
+
+#Melt the data frame from wide to long format
+greenness_melt_data <- reshape2::melt(greenness_data, varnames = c("Cultivar", "Rep"))
+
+#overal levenes test
+leveneTest(value~variable,greenness_melt_data,center="mean")
+
+# There is NO equal variance among environments for greenness. Now lets test in between plains. We need to subset it first. Griffin doesnt have two years data
+
+greenness_plains_data=subset(greenness_melt_data, variable=="GRN_PL22"| variable=="GRN_PL21")
+
+leveneTest(value~variable,greenness_plains_data,center="mean")
+
+#Plains data of greenness also have NO equal variance
+```
+
+### Normality check
+```{r}
+shapiro.test(greenness_data$GRN_PL22)
+shapiro.test(greenness_data$GRN_GRF22)
+shapiro.test(greenness_data$GRN_PL21)
+
+#Non normal to all three environments for greenness data
+```
+
+
+
+# 8. Stand count
+##   SubsettinG data
+```{r}
+#Subsetting germination data
+germ_data <- mydata[, c("Cultivar","ID","Rep", "SC_PL23","SC_GRF23","SC_PL22", "SC_GRF22", "SC_PL21","SC_GRF21" )]
+head(germ_data)
+
+germ_melt_data <- reshape2::melt(germ_data, varnames = c("Cultivar", "Rep"))
+germ_data_griffin <-germ_data[, c("Cultivar","ID","Rep", "SC_GRF23", "SC_GRF22", "SC_GRF21" )]
+germ_data_plains=germ_data[, c("Cultivar","ID","Rep", "SC_PL23", "SC_PL22", "SC_PL21" )]
+germ_melt_plains <- reshape2::melt(germ_data_plains, varnames = c("Cultivar", "Rep"))
+germ_melt_griffin <- reshape2::melt(germ_data_griffin, varnames = c("Cultivar", "Rep"))
+```
+##   Plotting
+###  Simple plot
+```{r}
+plot(germ_data$SC_PL22, col=germ_data$Rep,xlab = "Lines", ylab = "Stand count(%)  for PL22 ")
+plot(germ_data$SC_GRF22,col=germ_data$Rep,xlab = "Lines", ylab = "Stand count(%)  for GRF22")
+plot(germ_data$SC_PL21,col=germ_data$Rep,xlab = "Lines", ylab = "Stand count(%)  for PL21")
+plot(germ_data$SC_GRF21,col=germ_data$Rep,xlab = "Lines", ylab = "Stand count(%)  for GRF21")
+
+#For PL22 there is just one line with 0% stand count
+```
+
+##   Data validity
+### Levene's test
+```{r}
+library(car)
+
+#overal levenes test
+leveneTest(value~variable,germ_melt_data,center="mean")
+
+# There is NO equal variance among environments for germination %. Now lets test within griffin and plains. We need to subset it first. 
+
+germ_plains_data=subset(germ_melt_data, variable=="SC_PL22"| variable=="SC_PL21")
+germ_Grf_data=subset(germ_melt_data, variable=="SC_GRF22"| variable=="SC_GRF21")
+
+leveneTest(value~variable,germ_melt_griffin,center="mean")$`Pr(>F)`
+leveneTest(value~variable,germ_melt_plains,center="mean")$`Pr(>F)`
+
+#PLAINS data have equal variance for germination % but griffin data donot have equal environments from year 2021 and 2022
+```
+
+### Normality check
+```{r}
+shapiro.test(germ_melt_data$value)$p.value
+shapiro.test(germ_melt_plains$value)$p.value
+shapiro.test(germ_data$SC_PL22)
+shapiro.test(germ_data$SC_GRF22)
+shapiro.test(germ_data$SC_PL21)
+shapiro.test(germ_data$SC_GRF21)
+
+#Non normal to all environments for germination %
+```
+
+##   Linear regression
+```{r}
+
+# Stand count is not different among genotypes in any environment
+
+
+
+#ALL ENVT
+Model2_SC_ALL= lmer(germ_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=germ_melt_data)
+summary(Model2_SC_ALL)
+ranova(Model2_SC_ALL)$Pr
+
+
+
+Model2_SC_PL= lmer(germ_melt_plains$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=germ_melt_plains)
+summary(Model2_SC_PL)
+ranova(Model2_SC_PL)$Pr
+
+
+
+Model2_SC_GRF= lmer(germ_melt_griffin$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=germ_melt_griffin)
+summary(Model2_SC_GRF)
+ranova(Model2_SC_GRF)$Pr
+
+##################### SC_PL23 ############################
+model2_SC_PL23=lmer(germ_data$SC_PL23~(1|ID)+(1|Rep), data=germ_data) 
+hist(residuals(model2_SC_PL23), col="light Blue") 
+plot(model2_SC_PL23)              
+summary(model2_SC_PL23)         
+ranova(model2_SC_PL23) 
+
+
+##################### SC_GRF23 ############################
+model2_SC_GRF23=lmer(germ_data$SC_GRF23~(1|ID)+(1|Rep), data=germ_data)  
+hist(residuals(model2_SC_GRF23), col="light Blue") 
+plot(model2_SC_GRF23)              
+summary(model2_SC_GRF23)         
+ranova(model2_SC_GRF23)  
+
+##################### SC_PL22 ############################
+model2_SC_PL22=lmer(germ_data$SC_PL22~(1|ID)+(1|Rep), data=germ_data) 
+hist(residuals(model2_SC_PL22), col="light Blue") 
+plot(model2_SC_PL22)              
+summary(model2_SC_PL22)         
+ranova(model2_SC_PL22)            # both Id and rep non significant for  SC PL 22
+
+##################### SC_GRF22 ############################
+model2_SC_GRF22=lmer(germ_data$SC_GRF22~(1|ID)+(1|Rep), data=germ_data)  
+hist(residuals(model2_SC_GRF22), col="light Blue") 
+plot(model2_SC_GRF22)              
+summary(model2_SC_GRF22)         
+ranova(model2_SC_GRF22)           #id Nonsignificant
+
+##################### SC_PL21 ############################
+
+model2_SC_PL21=lmer(germ_data$SC_PL21~(1|ID)+(1|Rep), data=germ_data)
+plot(germ_data$SC_PL21)
+hist(residuals(model2_SC_PL21), col="light Blue") 
+plot(model2_SC_PL21)              
+summary(model2_SC_PL21)         
+ranova(model2_SC_PL21)   #BOTH id AND REP NS
+
+####################### GRF_PL21 ##############################
+model2_SC_GRF21=lmer(germ_data$SC_GRF21~(1|ID)+(1|Rep), data=germ_data) 
+hist(residuals(model2_SC_GRF21), col="light Blue") #residuals histogram check looks normally distribution for SC_GRF21
+plot(model2_SC_GRF21)              
+summary(model2_SC_GRF21)         
+ranova(model2_SC_GRF21)     #BOTH ID AND REP NS
+
+
+# CHECKING FOR VARIATION IN EACH ENVIORNMNET WHICH CAN TELL US ABOUT ENVIORNMNETAL EFFET 
+VarCorr(model2_SC_PL22)
+VarCorr(model2_SC_GRF22)
+VarCorr(model2_SC_PL21)
+VarCorr(model2_SC_GRF21)
+```
+
+# 9. Vigor
+##   Subsetting data
+```{r}
+#Subsetting vigor data
+vigor_data <- mydata[, c("Cultivar","ID","Rep", "VG_PL23","VG_GRF23","VG_PL22", "VG_GRF22", "VG_PL21","VG_GRF21" )]
+colSums(is.na(vigor_data))
+vigor_subset_data=vigor_data
+vigor_subset_data[vigor_subset_data == 0] <- NA # here converting all 0 to NA since 0 vigor is unusual and not recorded. Should be phenotyping error
+
+colSums(is.na(vigor_subset_data))  #checking how many turned to NA in comparison to orginal set
+
+head(vigor_subset_data)
+
+VG_melt_data <- reshape2::melt(vigor_subset_data, varnames = c("Cultivar", "Rep"))
+VG_data_griffin <-vigor_subset_data[, c("Cultivar","ID","Rep", "VG_GRF23", "VG_GRF22", "VG_GRF21" )]
+VG_data_plains=vigor_subset_data[, c("Cultivar","ID","Rep", "VG_PL23", "VG_PL22", "VG_PL21" )]
+VG_melt_plains <- reshape2::melt(VG_data_plains, varnames = c("Cultivar", "Rep"))
+VG_melt_griffin <- reshape2::melt(VG_data_griffin, varnames = c("Cultivar", "Rep"))
+```
+
+##   Plotting
+### Simple plot
+```{r}
+plot(vigor_subset_data$VG_PL23, col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for PL23 ")
+plot(vigor_subset_data$VG_GRF23, col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for GRF23 ")
+plot(vigor_subset_data$VG_PL22, col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for PL22 ")
+plot(vigor_subset_data$VG_GRF22,col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for GRF22")
+plot(vigor_subset_data$VG_PL21,col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for PL21")
+plot(vigor_subset_data$VG_GRF21,col=vigor_subset_data$Rep,xlab = "Lines", ylab = "Vigor  for GRF21")
+
+# remember to use vigor subset data for analysis
+```
+
+
+#for paper
+```{r}
+VG_graph_data=vigor_subset_data
+new_column_names=c("Cultivar","ID","Rep", "PL23","GRF23","PL22","GRF22","PL21","GRF21")
+colnames(VG_graph_data)=new_column_names
+str(VG_graph_data)
+
+VG_graph_melt=reshape2::melt(VG_graph_data, varnames = c("Cultivar", "Rep"))
+
+
+ggplot(VG_graph_melt, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(width = 0.5, position = position_dodge(0.8)) +
+  
+  # Set fill colors using a palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and fill legend
+  labs( x = "", y = "VG",
+       fill = "Environment") +
+  
+  # Customize the theme for compactness
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle =0, vjust = 0, size = 15,color="black"),
+    axis.text.y = element_text(size = 15,hjust = 1, vjust =2, color="black"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+##   Data validity
+### Levene's test
+```{r}
+library(car)
+#overal levenes test
+leveneTest(value~variable,VG_melt_data,center="mean")
+
+
+leveneTest(value~variable,VG_melt_griffin,center="mean")$`Pr(>F)`
+leveneTest(value~variable,VG_melt_plains,center="mean")$`Pr(>F)`
+
+#PLAINS AND griffin environments also dont have equal variance for vigor
+```
+
+### Normality check
+```{r}
+shapiro.test(VG_melt_data$value)$p.value
+shapiro.test(VG_melt_plains$value)$p.value
+shapiro.test(VG_melt_griffin$value)$p.value
+shapiro.test(vigor_subset_data$VG_PL22)
+shapiro.test(vigor_subset_data$VG_GRF22)
+shapiro.test(vigor_subset_data$VG_PL21)
+shapiro.test(vigor_subset_data$VG_GRF21)
+
+#Non normal to all environments for vigor.
+```
+## Linear regression
+```{r}
+
+##### For combined envt
+model2_VG=lmer(VG_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=VG_melt_data) 
+hist(residuals(model2_VG), col="light Blue") 
+summary(model2_VG)
+ranova(model2_VG)$Pr
+
+model2_VG_plains=lmer(VG_melt_plains$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=VG_melt_plains)
+summary(model2_VG_plains)
+ranova(model2_VG_plains)$Pr
+
+model2_VG_grf=lmer(VG_melt_griffin$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable),data=VG_melt_griffin) #gxe singular
+summary(model2_VG_grf)
+ranova(model2_VG_grf)$Pr # ID ALSO NOT SIGNIFICANT
+
+#### INDIVIDUAL ENVT
+
+
+model2_VG_GRF23=lmer(vigor_subset_data$VG_GRF23~(1|ID)+(1|Rep), data=vigor_subset_data) 
+hist(residuals(model2_VG_GRF23), col="light Blue")
+plot(model2_VG_GRF23)
+summary(model2_VG_GRF23)
+ranova(model2_VG_GRF23)
+
+model2_VG_PL23=lmer(vigor_subset_data$VG_PL23~(1|ID)+(1|Rep), data=vigor_subset_data) 
+hist(residuals(model2_VG_PL23), col="light Blue")
+plot(model2_VG_PL23)
+summary(model2_VG_PL23)
+ranova(model2_VG_PL23)
+
+model2_VG_PL22=lmer(vigor_subset_data$VG_PL22~(1|ID)+(1|Rep), data=vigor_subset_data) #rep singular
+hist(residuals(model2_VG_PL22), col="light Blue")
+plot(model2_VG_PL22)
+summary(model2_VG_PL22)
+ranova(model2_VG_PL22)
+
+#for VG GRF22 None significant
+model2_VG_GRF22=lmer(vigor_subset_data$VG_GRF22~(1|ID)+(1|Rep), data=vigor_subset_data) 
+hist(residuals(model2_VG_GRF22), col="light Blue")
+plot(model2_VG_GRF22)
+summary(model2_VG_GRF22)
+ranova(model2_VG_GRF22)
+
+model2_VG_PL21=lmer(vigor_subset_data$VG_PL21~(1|ID)+(1|Rep), data=vigor_subset_data) 
+hist(residuals(model2_VG_PL21), col="light Blue")
+plot(model2_VG_PL21)
+summary(model2_VG_PL21)
+ranova(model2_VG_PL21)
+
+model2_VG_GRF21=lmer(vigor_subset_data$VG_GRF21~(1|ID)+(1|Rep), data=vigor_subset_data) 
+hist(residuals(model2_VG_GRF21), col="light Blue")
+plot(model2_VG_GRF21)
+summary(model2_VG_GRF21)
+ranova(model2_VG_GRF21)
+
+
+```
+
+##   BLUP estimation
+```{r}
+
+###################### VG for 6 environments ###################
+fixef(model2_VG)
+ranef(model2_VG)$ID
+BLUP_normal_VG= fixef(model2_VG)+ranef(model2_VG)$ID
+tail(BLUP_normal_VG)
+write.csv(BLUP_normal_VG, file="BLUP_VG.csv") 
+hist(BLUP_normal_VG$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+###################### VG for PLAINS 3 ENV ###################
+fixef(model2_VG_plains)
+ranef(model2_VG_plains)$ID
+BLUP_normal_VG_plains= fixef(model2_VG_plains)+ranef(model2_VG_plains)$ID
+tail(BLUP_normal_VG_plains)
+write.csv(BLUP_normal_VG_plains, file="BLUP_VG_plains.csv") 
+hist(BLUP_normal_VG_plains$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+
+##################### VG_PL23 ############################
+fixef(model2_VG_PL23)
+ranef(model2_VG_PL23)$ID
+BLUP_normal_VG_PL23= fixef(model2_VG_PL23)+ranef(model2_VG_PL23)$ID
+tail(BLUP_normal_VG_PL23)
+write.csv(BLUP_normal_VG_PL23, file="BLUP_VG_PL23.csv") 
+hist(BLUP_normal_VG_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_VG_PL23)$ID, file="BLUP_VG_PL23.csv") #no covariance in vigor but only the ranef taken out
+
+##################### VG_GRF23 ############################
+fixef(model2_VG_GRF23)
+ranef(model2_VG_GRF23)$ID
+BLUP_normal_VG_GRF23= fixef(model2_VG_GRF23)+ranef(model2_VG_GRF23)$ID
+tail(BLUP_normal_VG_GRF23)
+write.csv(BLUP_normal_VG_GRF23, file="BLUP_VG_GRF23.csv") 
+hist(BLUP_normal_VG_GRF23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_VG_GRF23)$ID, file="BLUP_VG_GRF23.csv") #no covariance in vigor but only the ranef taken out
+##################### VG_PL22 ############################
+fixef(model2_VG_PL22)
+ranef(model2_VG_PL22)$ID
+BLUP_normal_VG_PL22= fixef(model2_VG_PL22)+ranef(model2_VG_PL22)$ID
+tail(BLUP_normal_VG_PL22)
+write.csv(BLUP_normal_VG_PL22, file="BLUP_VG_PL22.csv") 
+hist(BLUP_normal_VG_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+
+write.csv(ranef(model2_VG_PL22)$ID, file="BLUP_VG_PL22.csv") #no covariance in vigor but only the ranef taken out
+##################### VG_PL21 ############################
+fixef(model2_VG_PL21)
+ranef(model2_VG_PL21)$ID
+BLUP_normal_VG_PL21= fixef(model2_VG_PL21)+ranef(model2_VG_PL21)$ID
+tail(BLUP_normal_VG_PL21)
+write.csv(BLUP_normal_VG_PL21, file="BLUP_VG_PL21.csv") 
+hist(BLUP_normal_VG_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_VG_PL21)$ID, file="BLUP_VG_PL21.csv") #no covariance in vigor but only the ranef taken out
+##################### VG_GRF21 ############################
+fixef(model2_VG_GRF21)
+ranef(model2_VG_GRF21)$ID
+BLUP_normal_VG_GRF21= fixef(model2_VG_GRF21)+ranef(model2_VG_GRF21)$ID
+tail(BLUP_normal_VG_GRF21)
+write.csv(BLUP_normal_VG_GRF21, file="BLUP_VG_GRF21.csv") 
+hist(BLUP_normal_VG_GRF21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+write.csv(ranef(model2_VG_GRF21)$ID, file="BLUP_VG_GRF21.csv") #no covariance in vigor but only the ranef taken out
+```
+
+# 10. Yield
+## Subsetting data
+```{r}
+#Subsetting yield data
+YLD_data <- mydata[, c("Cultivar","ID","Rep", "YLD_PL23","YLD_PL22","YLD_PL21","YLD_PL18","YLD_GRF18")]
+#ags2060 has 12000 kg/ha, it was changed to NA
+#conversion=67.25 #converting bushels/acre to kg/ha
+#YLD_data_inkg=YLD_data %>% mutate_at(vars(4:9),~.*conversion)
+head(YLD_data)
+
+YLD_melt_data <- reshape2::melt(YLD_data, varnames = c("Cultivar", "Rep"))
+YLD_2018=read.csv("YLD_PL_GRF18.csv")
+YLD_2018$ID=as.factor(YLD_2018$ID)
+YLD_2018$Taxa=as.factor(YLD_2018$Taxa)
+```
+
+## Plotting
+### Simple plot
+```{r}
+plot(YLD_data$YLD_PL23, col=YLD_data$Rep,xlab = "Lines", ylab = "Yiled (BUPA)  for PL23 ")
+plot(YLD_data$YLD_PL22, col=YLD_data$Rep,xlab = "Lines", ylab = "Yiled (BUPA)  for PL22 ")
+plot(YLD_data$YLD_PL21, col=YLD_data$Rep,xlab = "Lines", ylab = "Yiled (BUPA)  for PL21 ")
+plot(YLD_data$YLD_PL18, col=YLD_data$Rep,xlab = "Lines", ylab = "Yiled (BUPA)  for PL18")
+```
+### Boxplot
+```{r}
+### box plot
+# Set color palette
+my_palette <- c("#0072B2", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+
+# Create the box plot
+ggplot(YLD_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+  geom_boxplot(color = "black", outlier.color = "black") +
+  
+#ggplot(Heading_melt_data, aes(x = variable, y = value, fill = factor(value))) + #Heading date by environment by repliate
+#geom_boxplot(color = "black", outlier.color = "black") +
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Yield by Environment",
+       x = "Environment", y = "Yield in bushels/acre",
+       fill = "Environment") +
+  ylim(500, 10000) +
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5,size = 10),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12, hjust=1),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15))
+```
+### violin plot
+```{r}
+#   Create violin plot by environment only
+ggplot(YLD_melt_data, aes(x = variable, y = value, fill = factor(variable))) +
+geom_violin(trim = FALSE, adjust = 2, alpha = 0.5) +
+geom_boxplot(width = 0.2, color = "black", outlier.color = "black", fill = "white") +
+    
+  # Set fill colors using the palette
+  scale_fill_manual(values = my_palette) +
+  
+  # Set the title, axis labels, and limits
+  labs(title = "Yield by environment",
+       x = "Environment", y = "YLD in Bushels/acre",
+       fill = "Environment") +
+  ylim(500, 10000) 
+  
+  # Customize the theme
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+## Data validity
+### Levene's test
+```{r}
+#overal levenes test
+leveneTest(value~variable,YLD_melt_data,center="mean")$`Pr(>F)`
+YLD_melt_data<- YLD_melt_data[complete.cases(YLD_melt_data), ]
+str(YLD_melt_data)
+fligner.test(value~variable, YLD_melt_data)
+```
+
+### Normality check
+```{r}
+shapiro.test(YLD_data$YLD_PL23)
+shapiro.test(YLD_data$YLD_PL22)
+shapiro.test(YLD_data$YLD_PL21)
+shapiro.test(YLD_21_22_melt$value)
+shapiro.test(YLD_data$YLD_2018)
+shapiro.test(YLD_data$YLD_GRF18)
+shapiro.test(YLD_data$YLD_PL18)
+```
+
+## Linear regression
+```{r}
+
+################ 21 and 22 combined ################
+model_YLD_21_22= lmer(YLD_21_22_melt$value~(1|Rep)+(1|ID)+(1|variable)+(1|ID:variable), data=YLD_21_22_melt)
+hist(residuals(model_YLD_21_22))
+summary(model_YLD_21_22)
+ranova(model_YLD_21_22)
+
+################### all year 18, 21, 22, 23. 
+data_yeild=droplevels(YLD_melt_data) # this drops any usused levels of the factors such as Rep and allows to run linear model
+model_YLD_allyear=lmer(data_yeild$value~(1|ID)+(1|variable)+(1|ID:variable), data=data_yeild) 
+hist(residuals(model_YLD_allyear), col="light Blue") 
+plot(model_YLD_allyear)             
+summary(model_YLD_allyear)         
+ranova(model_YLD_allyear) 
+
+#for each individual environment without second rep I will just use the raw data for one rep
+
+
+##################### YLD PL22 ############################
+model2_YLD_PL22=lmer(YLD_data$YLD_PL22~(1|ID)+(1|Rep), data=YLD_data) 
+hist(residuals(model2_YLD_PL22), col="light Blue") 
+plot(model2_YLD_PL22)             
+summary(model2_YLD_PL22)         
+ranova(model2_YLD_PL22)   
+
+##################### YLD PL21 ############################
+model2_YLD_PL21=lmer(YLD_data$YLD_PL21~(1|Rep)+(1|ID), data=YLD_data) 
+hist(residuals(model2_YLD_PL21), col="light Blue") 
+plot(model2_YLD_PL21)             
+summary(model2_YLD_PL21)         
+ranova(model2_YLD_PL21) 
+
+# bOTH ID and Rep significant for both YLD PL22 and YLD PL 21
+##################### YLD 2018 ############################
+model2_YLD_2018=lmer(YLD_data_inkg$YLD_2018~(1|ID)+(1|Rep), data=YLD_data_inkg) #SINGULAR EFFECT
+hist(residuals(model2_YLD_2018), col="light Blue") 
+plot(model2_YLD_2018)             
+summary(model2_YLD_2018)         
+ranova(model2_YLD_2018) 
+
+
+model2_YLD_PL23=lm(YLD_data$YLD_PL23~(1|ID), data=YLD_data) #GRIFFIN ONLY
+
+model=lmer(YLD_data$YLD_GRF18~Cultivar, data=YLD_data)
+
+model2_YLD_GRF18=lm(YLD_data$YLD_GRF18~Cultivar, data=YLD_data) #GRIFFIN ONLY
+model2_YLD_PL18=lm(YLD_data$YLD_PL18~ID, data=YLD_data) #PLAINS ONLY 
+
+
+#Yield from all 249 LINES GROWN BY SUMIT
+
+model3_YLD_PL18=lm(YLD_PL18~ID,data=YLD_2018)
+model3_YLD_GRF18=lm(YLD_GRF18~ID,data=YLD_2018)
+```
+
+## BLUP estimation
+```{r}
+##################### YLD_PL21_22 ############################
+fixef(model_YLD_21_22)
+ranef(model_YLD_21_22)$ID
+BLUP_normal_YLD_21_22= fixef(model_YLD_21_22)+ranef(model_YLD_21_22)$ID
+tail(BLUP_normal_YLD_21_22)
+write.csv(BLUP_normal_YLD_21_22, file="BLUP_YLD_21_22.csv") 
+hist(BLUP_normal_YLD_21_22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+#for each individual environment without second rep I will just use the raw data for one rep
+
+predictions_YLD_PL18=model2_YLD_PL18
+model2_YLD_PL18$xlevels
+write.csv(value1, file="BLUP_YLD_PL18.csv") 
+predictions_YLD_GRF18=model2_YLD_GRF18$xlevels
+model2_YLD_GRF18
+write.csv(predictions_YLD_GRF18, file="BLUP_YLD_GRF18.csv") 
+predictions_YLD_PL23=model2_YLD_PL23$fitted.values
+write.csv(predictions_YLD_PL23, file="BLUP_YLD_PL23.csv") 
+
+#################### YLD_PL22 ############################
+ranef(model2_YLD_PL22)
+BLUP_YLD_PL22=ranef(model2_YLD_PL22)$ID
+head(BLUP_YLD_PL22)
+fixef(model2_YLD_PL22) # this is the intercept which is basically applied to each lines. when this is added to ranef which can be negative or positive we get normal blup estimates. 
+BLUP_normal_YLD_PL22=fixef(model2_YLD_PL22)+BLUP_YLD_PL22
+#Extracting BLUP values and converting to normal scale. Adding intercept value of fixed effect to correct BLUP to normal scale
+tail(BLUP_normal_YLD_PL22)
+write.csv(BLUP_normal_YLD_PL22, file="BLUP_YLD_PL22.csv") 
+hist(BLUP_normal_YLD_PL22$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+##################### YLD_PL21 ############################
+fixef(model2_YLD_PL21)
+ranef(model2_YLD_PL21)$ID
+BLUP_normal_YLD_PL21= fixef(model2_YLD_PL21)+ranef(model2_YLD_PL21)$ID
+tail(BLUP_normal_YLD_PL21)
+write.csv(BLUP_normal_YLD_PL21, file="BLUP_YLD_PL21.csv") 
+hist(BLUP_normal_YLD_PL21$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+
+
+############## YLd combined all year
+fixef(model_YLD_allyear)
+ranef(model_YLD_allyear)$ID
+BLUP_normal_YLD_allyear= fixef(model_YLD_allyear)+ranef(model_YLD_allyear)$ID
+head(BLUP_normal_YLD_allyear)
+write.csv(BLUP_normal_YLD_allyear, file="BLUP_YLD_allyear.csv") 
+hist(BLUP_normal_YLD_allyear$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+#FROM 249 lines
+blup_yld_pl18=model3_YLD_PL18$fitted.values
+
+write.csv(blup_yld_pl18, file="BLUP_YLD_PL18_orignal_data.csv")
+
+blup_yld_GRF18=model3_YLD_GRF18$fitted.values
+
+write.csv(blup_yld_GRF18, file="BLUP_YLD_GRF18_orignal_data.csv")
+```
+
+## Analysis of 2018 yield data
+```{r}
+Sumit_data= read_xlsx("YLD_2018_data.xlsx") #read data from directory
+Sumit_data$Check=as.factor(Sumit_data$Check)
+Sumit_data$Taxa=as.factor(Sumit_data$Taxa)
+unique_taxa=unique(Sumit_data$Taxa)
+unique_taxa
+write.csv(unique_taxa,"Unqiue_line_Sumitdata.csv")
+
+```
+
+### Plotting
+#### Simple plot
+```{r}
+# Plot all data
+plot(Sumit_data$YLD_GRF2018, ylab = "Yield (BUPA) for GRF18", 
+     col = "black", pch = 16)
+
+```
+
+### Data validity
+#### Normality check
+```{r}
+shapiro.test(Sumit_data$YLD_GRF2018)
+
+```
+
+### Linear regression
+```{r}
+##################### YLD GRF18############################
+
+model2_YLD_GRF18 <- lmer(YLD_GRF2018 ~ (1|Taxa), data = Sumit_data)
+hist(residuals(model2_YLD_GRF18), col="light Blue") 
+plot(model2_YLD_GRF18)             
+summary(model2_YLD_GRF18)      
+ranova(model2_YLD_GRF18)   
+
+# bOTH ID and Rep significant for both YLD PL22 and YLD PL 21
+```
+
+### BLUP estimation
+```{r}
+##################### YLD_GRF18 ############################
+fixef(model2_YLD_GRF18)
+ranef(model2_YLD_GRF18)$Taxa
+BLUP_normal_YLD_GRF18= fixef(model2_YLD_GRF18)+ranef(model2_YLD_GRF18)$Taxa
+tail(BLUP_normal_YLD_GRF18)
+write.csv(BLUP_normal_YLD_GRF18, file="BLUP_YLD_GRF18.csv") 
+hist(BLUP_normal_YLD_GRF18$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
+
+```
+
+
+
+
+
+#  Correlation among traits
+```{r}
+str(mydata)
+#option1
+correlation_data=subset(agronomy_melt_data[5:11])
+options(usedist="pairwise.complete.obs")
+Maincorrelation=psych::pairs.panels(correlation_data, method = "pearson")
+Maincorrelation
+
+#option2
+correlation_matrix=cor(correlation_data, use="complete.obs", method="pearson")
+correlation_matrix
+
+
+#option3
+install.packages("corrplot")
+library(corrplot)
+
+corrplot(correlation_matrix, method='color', type='upper', order='hclust',)
+
+```
+
+# corrleation  among the melt data
+```{r}
+correlation_data=data.frame()
+correlation_data <- rbind(correlation_data,data.frame(Heading_melt_data$value,height_melt_data$value, peduncle_melt_data$value,FLL_melt_data$value,FLW_melt_data$value,LA_melt_data$value,LWR_melt_data$value, VG_melt_data$value))
+
+new_column_names=c("HD_ALLC","PHT_ALLC","PDL_ALLC","FLL_ALLC","FLW_ALLC","LA_ALLC","LWR_ALLC", "VG_ALLC")
+colnames(correlation_data)=new_column_names
+str(correlation_data)
+
+options(usedist="pairwise.complete.obs")
+Maincorrelation=psych::pairs.panels(correlation_data, method = "pearson")
+Maincorrelation
+
+#option2
+correlation_matrix=cor(correlation_data, use="complete.obs", method="pearson")
+correlation_matrix
+
+
+#option3
+install.packages("corrplot")
+library(corrplot)
+
+corrplot(correlation_matrix[1:8], method='color', type='upper', order='hclust',)
+
+correlation_matrix_allenvironment= cor(mydata[4:70],use="complete.obs", method="pearson")
+write.csv(correlation_matrix_allenvironment, "correlation_allenvtdata.csv")
+
+
+
+```
+
+# to get signficance value of correlation
+```{r}
+
+correlation_pairs <- combn(names(correlation_data), 2)
+results <- apply(correlation_pairs, 2, function(pair) {
+  trait1 <- pair[1]
+  trait2 <- pair[2]
+  p_value <- cor.test(correlation_data[, trait1], correlation_data[, trait2], method = "pearson")$p.value
+  c(trait1, trait2, p_value)
+})
+write.csv(results,"Pairwise_Correlation_paerson_pvalue.csv")
+
+cor.test(correlation_data$FLW_ALL,correlation_data$PDL_ALL, method="pearson")
+
+
+```
+
+
+#   multiple normality graph
+```{r}
+
+Plains2022_long <- tidyr::gather(Plains2022, key = "trait", value = "value")
+Plains2021_long <- tidyr::gather(Plains2021, key = "trait", value = "value")
+Griffin2021_long=tidyr::gather(Griffin2021, key = "trait", value = "value")
+Griffin2022_long=tidyr::gather(Griffin2022, key = "trait", value = "value")
+str(Plains2022_long)
+
+# Create a normality plot for each trait
+ggplot(Plains2022_long, aes(x = value, fill = trait)) + 
+  geom_histogram(aes(y = ..density..), bins = 20, color = "black", alpha = 0.5) + 
+  geom_density(alpha = 0.5) + 
+  facet_wrap(~ trait, scales = "free") + 
+  theme_classic() + 
+  labs(x = "Value", y = "Density", fill = "Trait")
+
+ggplot(Plains2021_long, aes(x = value, fill = trait)) + 
+  geom_histogram(aes(y = ..density..), bins = 20, color = "black", alpha = 0.5) + 
+  geom_density(alpha = 0.5) + 
+  facet_wrap(~ trait, scales = "free") + 
+  theme_classic() + 
+  labs(x = "Value", y = "Density", fill = "Trait")
+
+ggplot(Griffin2021_long, aes(x = value, fill = trait)) + 
+  geom_histogram(aes(y = ..density..), bins = 20, color = "black", alpha = 0.5) + 
+  geom_density(alpha = 0.5) + 
+  facet_wrap(~ trait, scales = "free") + 
+  theme_classic() + 
+  labs(x = "Value", y = "Density", fill = "Trait")
+
+ggplot(Griffin2022_long, aes(x = value, fill = trait)) + 
+  geom_histogram(aes(y = ..density..), bins = 20, color = "black", alpha = 0.5) + 
+  geom_density(alpha = 0.5) + 
+  facet_wrap(~ trait, scales = "free") + 
+  theme_classic() + 
+  labs(x = "Value", y = "Density", fill = "Trait")
+```
+
+#Getting normality from all trait columns at once
+```{r}
+# Assuming your data frame is named 'mydata'
+start_col <- 5  # Start column index
+end_col <- 11 # End column index
+
+# Create an empty data frame to store results
+normality_results <- data.frame(Column = character(0), P_Value = numeric(0))
+
+# Loop through each column and perform Shapiro-Wilk test
+for (col_index in start_col:end_col) {
+  col_name <- colnames(Combineddata_PL)[col_index]
+  
+  # Perform Shapiro-Wilk test on the numeric column
+  shapiro_result <- shapiro.test(Combineddata_PL[[col_name]])
+  
+# Append results to the data frame
+  normality_results <- rbind(normality_results, data.frame(Column = col_name, P_Value = shapiro_result$p.value))
+
+}
+# Print or save the results
+print(normality_results)
+write.csv(normality_results, "Shapiro_test_for_PAPER.csv")
+
+
+
+```
+
+# BLUP calcualtion for combined envts
+
+```{r}
+combinedenvt_data=data.frame()
+combinedenvt_data <- rbind(combinedenvt_data,data.frame(Heading_melt_data$Cultivar,Heading_melt_data$ID,Heading_melt_data$Rep,Heading_melt_data$variable,Heading_melt_data$value,height_melt_data$value,peduncle_melt_data$value,FLL_melt_data$value,FLW_melt_data$value,LA_melt_data$value,LWR_melt_data$value,VG_melt_data$value))
+
+
+new_column_names=c("Cultivar","ID","Rep","Env","HD_ALL","PHT_ALL","PDL_ALL","FLL_ALL","FLW_ALL","LA_ALL","LWR_ALL","VG_ALL")
+colnames(combinedenvt_data)=new_column_names
+str(combinedenvt_data)
+
+Combineddata_GRF=data.frame()
+Combineddata_GRF=rbind(Combineddata_GRF, data.frame(Heading_melt_griffin$Cultivar,Heading_melt_griffin$ID,Heading_melt_griffin$Rep,Heading_melt_griffin$variable,Heading_melt_griffin$value,height_melt_griffin$value,peduncle_melt_griffin$value,FLL_melt_griffin$value,FLW_melt_griffin$value,LA_melt_griffin$value,LWR_melt_griffin$value, VG_melt_griffin$value))
+
+new_column_names=c("Cultivar","ID","Rep","Env","HD_GRFC","PHT_GRFC","PDL_GRFC","FLL_GRFC","FLW_GRFC","LA_GRFC","LWR_GRFC","VG_GRFC")
+colnames(Combineddata_GRF)=new_column_names
+str(Combineddata_GRF)
+
+
+Combineddata_PL=data.frame()
+Combineddata_PL=rbind(Combineddata_PL, data.frame(Heading_melt_plains$Cultivar,Heading_melt_plains$ID,Heading_melt_plains$Rep,Heading_melt_plains$variable,Heading_melt_plains$value,height_melt_plains$value,peduncle_melt_plains$value,FLL_melt_plains$value,FLW_melt_plains$value,LA_melt_plains$value,LWR_melt_plains$value,VG_melt_plains$value))
+
+new_column_names=c("Cultivar","ID","Rep","Env","HD_PLC","PHT_PLC","PDL_PLC","FLL_PLC","FLW_PLC","LA_PLC","LWR_PLC","VG_PLC")
+colnames(Combineddata_PL)=new_column_names
+str(Combineddata_PL)
+
+write.csv(Combineddata_PL, "Plains_combinedata.csv")
+write.csv(Combineddata_GRF, "Griffin_combinedata.csv")
+write.csv(combinedenvt_data, "Allenvt_combinedata.csv")
+
+combinedenvt_data=read.csv("C:/Users/guest_user/OneDrive - University of Georgia/01_PhD/01_Research/Data_analysis/GWAS analysis/Final analysis/Agronomic data/FINAL PAPER ANALYSIS/Covariance resolved/Allenvt_combinedata.csv")
+combinedenvt_data$Cultivar=as.factor(combinedenvt_data$Cultivar)
+combinedenvt_data$ID=as.factor(combinedenvt_data$ID)
+combinedenvt_data$Rep=as.factor(combinedenvt_data$Rep)
+combinedenvt_data$Env=as.factor(combinedenvt_data$Env)
+  ################### Multiple env for interaction effect  #######################
+model2_heading=lmer(combinedenvt_data$HD_ALL~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_heading)
+ranova(model2_heading)$Pr
+fixef(model2_heading)
+write.csv(ranef(model2_heading)$ID,"BLUP_HD_ALL_cov.csv")
+fixef(model2_heading)
+ran
+
+model2_height=lmer(combinedenvt_data$PHT_ALL~HD_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_height)
+ranova(model2_height)$Pr
+
+write.csv(ranef(model2_height)$ID,"BLUP_PHT_ALL_cov.csv")
+write.csv(ranef(model2_height)$ID,"BLUP_PHT_ALL_cov.csv")
+fixef(model2_height)
+
+model2_peduncle=lmer(combinedenvt_data$PDL_ALL~HD_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_peduncle)
+ranova(model2_peduncle)$Pr
+write.csv(ranef(model2_peduncle)$ID,"BLUP_PDL_ALL_cov.csv")
+fixef(model2_peduncle)
+
+model2_FLL=lmer(combinedenvt_data$FLL_ALL~HD_ALL+PHT_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_FLL)
+ranova(model2_FLL)$Pr
+write.csv(ranef(model2_FLL)$ID,"BLUP_FLL_ALL_cov.csv")
+fixef(model2_FLL)
+
+model2_FLW=lmer(combinedenvt_data$FLW_ALL~HD_ALL+PHT_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_FLW)
+ranova(model2_FLW)$Pr
+write.csv(ranef(model2_FLW)$ID,"BLUP_FLW_ALL_cov.csv")
+fixef(model2_FLW)
+
+
+model2_LA=lmer(combinedenvt_data$LA_ALL~HD_ALL+PHT_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_LA)
+ranova(model2_LA)$Pr
+write.csv(ranef(model2_LA)$ID,"BLUP_LA_ALL_cov.csv")
+fixef(model2_LA)
+
+
+model2_LWR=lmer(combinedenvt_data$LWR_ALL~HD_ALL+PHT_ALL+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_LWR)
+ranova(model2_LWR)$Pr
+write.csv(ranef(model2_LWR)$ID,"BLUP_LWR_ALL_cov.csv")
+fixef(model2_LWR)
+
+###########################gRIFFIN COMBINED############################
+
+model2_heading_grf=lmer(Combineddata_GRF$HD_GRFC~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_heading_grf)
+ranova(model2_heading_grf)$Pr
+write.csv(ranef(model2_heading_grf)$ID,"BLUP_HD_GRF_cov.csv")
+fixef(model2_heading_grf)
+
+model2_height_grf=lmer(Combineddata_GRF$PHT_GRFC~HD_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_height_grf)
+ranova(model2_height_grf)$Pr
+write.csv(ranef(model2_height_grf)$ID,"BLUP_PHT_GRF_cov.csv")
+fixef(model2_height_grf)
+
+model2_peduncle_grf=lmer(Combineddata_GRF$PDL_GRFC~HD_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_peduncle_grf)
+ranova(model2_peduncle_grf)$Pr
+write.csv(ranef(model2_peduncle_grf)$ID,"BLUP_PDL_GRF_cov.csv")
+fixef(model2_peduncle_grf)
+
+model2_FLL_grf=lmer(Combineddata_GRF$FLL_GRFC~HD_GRFC+PHT_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_FLL_grf)
+ranova(model2_FLL_grf)$Pr #gxe non significant
+write.csv(ranef(model2_FLL_grf)$ID,"BLUP_FLL_GRF_cov.csv")
+fixef(model2_FLL_grf)
+
+model2_FLW_grf=lmer(Combineddata_GRF$FLW_GRFC~HD_GRFC+PHT_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_FLW_grf)
+ranova(model2_FLW_grf)$Pr
+write.csv(ranef(model2_FLW_grf)$ID,"BLUP_FLW_GRF_cov.csv")
+fixef(model2_FLW_grf)
+
+model2_LA_grf=lmer(Combineddata_GRF$LA_GRFC~HD_GRFC+PHT_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_LA_grf)
+ranova(model2_LA_grf)$Pr #gxe non significant
+write.csv(ranef(model2_LA_grf)$ID,"BLUP_LA_GRF_cov.csv")
+fixef(model2_LA_grf)
+
+
+model2_LWR_grf=lmer(Combineddata_GRF$LWR_GRFC~HD_GRFC+PHT_GRFC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_LWR_grf)
+ranova(model2_LWR_grf)$Pr # Envt and gxe non significant
+write.csv(ranef(model2_LWR_grf)$ID,"BLUP_LWR_GRF_cov.csv")
+fixef(model2_LWR_grf)
+
+###################### Plains combined
+
+model2_heading_pl=lmer(Combineddata_PL$HD_PLC~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_heading_pl)
+ranova(model2_heading_pl)$Pr
+write.csv(ranef(model2_heading_pl)$ID,"BLUP_HD_PL_cov.csv")
+fixef(model2_heading_pl)
+
+model2_height_pl=lmer(Combineddata_PL$PHT_PLC~HD_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_height_pl)
+ranova(model2_height_pl)$Pr
+write.csv(ranef(model2_height_pl)$ID,"BLUP_PHT_PL_cov.csv")
+fixef(model2_height_pl)
+
+model2_peduncle_pl=lmer(Combineddata_PL$PDL_PLC~HD_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_peduncle_pl)
+ranova(model2_peduncle_pl)$Pr
+write.csv(ranef(model2_peduncle_pl)$ID,"BLUP_PDL_PL_cov.csv")
+fixef(model2_peduncle_pl)
+
+model2_FLL_pl=lmer(Combineddata_PL$FLL_PLC~HD_PLC+PHT_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_FLL_pl)
+ranova(model2_FLL_pl)$Pr #gxe non significant
+write.csv(ranef(model2_FLL_pl)$ID,"BLUP_FLL_PL_cov.csv")
+fixef(model2_FLL_pl)
+
+model2_FLW_pl=lmer(Combineddata_PL$FLW_PLC~HD_PLC+PHT_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_FLW_pl)
+ranova(model2_FLW_pl)$Pr
+write.csv(ranef(model2_FLW_pl)$ID,"BLUP_FLW_PL_cov.csv")
+fixef(model2_FLW_pl)
+
+
+model2_LA_pl=lmer(Combineddata_PL$LA_PLC~HD_PLC+PHT_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_LA_pl)
+ranova(model2_LA_pl)$Pr #gxe non significant
+write.csv(ranef(model2_LA_pl)$ID,"BLUP_LA_PL_cov.csv")
+fixef(model2_LA_pl)
+
+model2_LWR_pl=lmer(Combineddata_PL$LWR_PLC~HD_PLC+PHT_PLC+(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_LWR_pl)
+ranova(model2_LWR_pl)$Pr
+write.csv(ranef(model2_LWR_pl)$ID,"BLUP_LWR_PL_cov.csv")
+fixef(model2_LWR_pl)
+
+
+model2_VG_PL=lmer(Combineddata_PL$VG_PLC~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_PL) 
+summary(model2_VG_PL)
+ranova(model2_VG_PL)$Pr
+write.csv(ranef(model2_VG_PL)$ID,"BLUP_VG_PL_cov.csv")
+fixef(model2_VG_PL)
+
+model2_VG_GRF=lmer(Combineddata_GRF$VG_GRFC~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=Combineddata_GRF) 
+summary(model2_VG_GRF)
+ranova(model2_VG_GRF)$Pr
+write.csv(ranef(model2_VG_GRF)$ID,"BLUP_VG_GRF_cov.csv")
+fixef(model2_VG_GRF)
+
+model2_VG_ALL=lmer(combinedenvt_data$VG_ALL~(1|ID)+(1|Rep)+(1|Env)+(1|ID:Env), data=combinedenvt_data) 
+summary(model2_VG_ALL)
+ranova(model2_VG_ALL)$Pr
+write.csv(ranef(model2_VG_ALL)$ID,"BLUP_VG_ALL_cov.csv")
+fixef(model2_VG_ALL)
+
+```
+
+
+# Descriptive stats for combined data
+```{r}
+mean_ALL= aggregate(x=combinedenvt_data[5:12],        # specify data column whose mean is being computed
+                by= list(combinedenvt_data$Cultivar),   # specify group indicator
+                FUN= "mean")             # specify function (i.e. mean)
+dstat_All= describe(mean_ALL)   
+head(dstat_All)
+write.csv(dstat_All, file='Descriptive_stat_ALLENVT.csv') # descriptive stat max and minimum can be different so do summary
+
+summary(combinedenvt_data[5:12])
+
+
+mean_GRF= aggregate(x=Combineddata_GRF[5:12],        # specify data column whose mean is being computed
+                by= list(Combineddata_GRF$Cultivar), FUN = "median")             # specify function (i.e. mean)
+dstat_grf= describe(mean_GRF)   
+head(dstat_grf)
+write.csv(dstat_grf, file='Descriptive_stat_GRFC.csv') 
+summary(Combineddata_GRF[5:12])
+
+summary(Combineddata_GRF[5:12])
+mean_PL= aggregate(x=Combineddata_PL[5:12],        # specify data column whose mean is being computed
+                by= list(Combineddata_PL$Cultivar),   # specify group indicator
+                FUN= "median")             # specify function (i.e. mean)
+dstat_PL= describe(mean_PL)   
+head(dstat_PL)
+write.csv(dstat_PL, file='Descriptive_stat_PLC.csv') 
+
+summary(Combineddata_PL[5:12])
+
+```
+
+
+
+
+
+
