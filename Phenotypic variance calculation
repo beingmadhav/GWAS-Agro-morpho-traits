@@ -1,0 +1,40 @@
+########################################## Phenotypic variance calculation ##########################################################
+#Required package installation
+install.packages("agricolae")
+install.packages("lmerTest") 
+install.packages("lme4")
+install.packages("lsmeans")
+
+
+#loading packages for use
+library(agricolae)
+library(lmerTest) 
+library(lme4)
+library(lsmeans)
+library(emmeans) 
+
+myPVE=read.csv("C:/Users/guest_user/Agronomic data/PVE ready_Significant_markers_fdr05.csv", stringsAsFactors = T)
+#This file consist of taxa names in first column, followed by genOtype data of all significant SNPs identified by GWAS arranged in columns
+#after that we have the phenotype data of the traits for which the SNP were identified to be significant. 
+
+head(myPVE)
+str(myPVE)
+summary(lm(myPVE$HD_PL21~M72_S2D_591389121, data=myPVE))$r.squared*100 #Here the phenotype HD_PL21 is considered as a function of the marker M72_S2D_591389121
+summary(lm(myPVE$HD_PL21~M73_S2A_28784613, data=myPVE))$r.squared*100  #Here the phenotype HD_PL21 is considered as a function of the marker M73_S2A_28784613
+summary(lm(myPVE$HD_PL21~M74_S2A_34434357, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M75_S5A_519123611, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M76_S6D_3048621, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M77_S6D_432841378, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M78_S3B_626885344, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M79_S2B_573813423, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M80_S6A_340692359, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M81_S4D_451276749, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL21~M82_S7A_710958627, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M83_S7A_526629245, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M84_S1D_259289506, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M85_S2D_629647578, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M86_S7D_34052488, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M87_S2B_692461043, data=myPVE))$r.squared*100
+summary(lm(myPVE$HD_PL22~M88_S3A_726519220, data=myPVE))$r.squared*100
+
+#Similarly PVE is calculated for all significant markers 
