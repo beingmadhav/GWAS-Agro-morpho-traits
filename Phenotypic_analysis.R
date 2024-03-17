@@ -10,6 +10,8 @@ install.packages("car")
 install.packages("gvlma")
 install.packages("reshape2")
 install.packages("dplyr")
+install.packages("corrplot")
+
 
 #loading packages for use
 library(agricolae)
@@ -24,6 +26,7 @@ library(gvlma)
 library(reshape2) 
 library(dplyr)
 library(multcompView)
+library(corrplot)
 
 ########################################################## PHENOTYPIC ANALYSIS ##################################################
 #Set working directory
@@ -211,3 +214,18 @@ write.csv(BLUP_normal_HD_PL23, file="BLUP_HD_PL23.csv")
 hist(BLUP_normal_HD_PL23$"(Intercept)", col="light Blue", labels=T) # Histogram of BLUP
 
 #Similarly BLUPs can be calculated for other environments and traits
+
+
+
+################################################# Correlation estimation ##########################################
+correlation_data=data.frame() #create an empty dataframe
+correlation_data <- rbind(correlation_data,data.frame(Heading_graph_melt$value,Height_graph_melt$value, Peduncle_graph_melt$value,FLL_graph_melt$value,FLW_graph_melt$value,LA_graph_melt$value,LWR_graph_melt$value, VG_graph_melt$value))
+# Fill the dataframe with melt data for each of the traits. 
+
+new_column_names=c("HD","PHT","PDL","FLL","FLW","LA","LWR", "VG") #Assign better names for creating a graph for paper
+colnames(correlation_data)=new_column_names
+str(correlation_data)
+
+correlation_matrix=cor(correlation_data, use="complete.obs", method="pearson") #creating correlation matrix based on pearson method
+correlation_matrix
+corrplot(correlation_matrix, method='number', order='hclust',sig.level = 0.05,is.corr = TRUE) #creating graph
