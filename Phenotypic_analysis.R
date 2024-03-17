@@ -125,7 +125,7 @@ shapiro.test(Heading_data$HD_GRF22)
 shapiro.test(Heading_data$HD_GRF21)
 
 
-################################################################# Linear regression analysis #####################################################
+################################################################# Mixed model  #####################################################
 # Combined environment for GXE interaction effect 
 # All-Combined data
 model2_heading=lmer(Heading_melt_data$value~(1|ID)+(1|Rep)+(1|variable)+(1|ID:variable), data=Heading_melt_data) 
