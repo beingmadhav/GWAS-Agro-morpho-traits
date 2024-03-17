@@ -1,0 +1,45 @@
+Install.packages("devtools")
+library(devtools)
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.17")
+
+BiocManager::install("snpStats")
+install_version("LDheatmap","1.0.6")
+devtools::install_github("jiabowang/GAPIT3",force=TRUE)
+library(GAPIT)
+
+source("https://zzlab.net/FarmCPU/FarmCPU_functions.txt") 
+install.packages("biganalytics")
+library (biganalytics)
+require(compiler)
+
+#Importing data
+GWASpheno_HD <- read.delim("C:/Users/MadhavSubedi/Agronomic_data/BLUP/HD_PL23",head = TRUE) 
+#Since only 230 lines had genotype data, we removed the lines without the genotype data. 
+#The BLUP file above should have taxa/cultivar in one column and the BLUP value in the next column
+
+head(GWASpheno_HD)
+GWASpheno_HD$Taxa=as.factor(GWASpheno_HD$Taxa) #Changing taxa to factor
+str(GWASpheno_HD)
+
+#Importing genotype data
+GWASgeno <- read.delim("C:/Users/MadhavSubedi/Agronomic_data/genotype data/geno27k_cultivar_sorted.hmp.txt", head=TRUE) 
+#This data is in hapmap format with SNPs in A,C,T,G format
+head(GWASgeno)
+
+#Multi model GWAS
+myGAPIT_Multitest <- GAPIT(
+  Y=GWASpheno_HD, #the first column should be taxa followed with the phenotypes else it gives ylim error
+  G=GWASgeno,
+  PCA.total=3,
+   model=c("MLM","GLM","MLMM","FarmCPU", "Blink"), #This is for testing multiple models 
+   Multiple_analysis=TRUE) 
+
+#Single model GWAS
+myGAPIT_FarmCPU <- GAPIT(
+  Y=GWASpheno_HD, 
+  G=GWASgeno,
+  PCA.total=3,
+  model="FarmCPU") #for running analysis using FarmCPU only
