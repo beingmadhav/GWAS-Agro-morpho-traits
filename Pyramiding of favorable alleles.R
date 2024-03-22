@@ -1,4 +1,4 @@
-##################################################### Pyramiding effect of Favorable alleles ####################################
+##################################################### Pyramiding effect of Favorable alleles  ####################################
 
 library(agricolae)
 library(lme4)
@@ -8,7 +8,7 @@ library(emmeans)
 library(multcompView)
 
 FLW_data=read.csv("Pyramiding_data_FLW.csv")
-#This file contains Taxa in first  column, number of favorable alleles (FAVA_NUM) for FLW for each lines in second column, and BLUP values of FLW in third column
+#This file contains Taxa in first  column, number of favorable alleles (FAVA_NUM) for Flag leaf width (FLW) for each lines in second column, and BLUP values of FLW in third column
 
 head(FLW_data)
 FLW_data$FAVA_NUM_FLW=factor(FLW_data$FAVA_NUM_FLW) #Change number of favourable alleles variable to factor
