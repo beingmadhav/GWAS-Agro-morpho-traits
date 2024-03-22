@@ -17,7 +17,7 @@ glimpse(FLW_data)
 
 describeBy(
   FLW_data,
-  FLW_data$FAVA_NUM_PHT # grouping variable
+  FLW_data$FAVA_NUM_FLW # grouping variable
 )
 
 # ANOVA test for variance by number of favourable alleles
